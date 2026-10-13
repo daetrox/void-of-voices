@@ -1,5 +1,8 @@
 # Cambios
 
+## 0.2.2
+- Windows: instalación del micrófono virtual (VB-Cable) con un clic desde la app. Lo descarga de la web oficial, verifica su huella SHA-256, abre su instalador y detecta solo cuándo está listo. El instalador de la app ya no manda a descargarlo a mano.
+
 ## 0.2.1
 - La app pasa a llamarse **Void of Voices** (antes Vozcándalo). Migra sola la configuración, las voces, los sonidos, el lanzador y el inicio automático.
 - Windows: información de versión en el `.exe`, sin UPX y con el bootloader de PyInstaller compilado en la propia CI para reducir falsos positivos del antivirus. Firma digital opcional en la CI (secretos `WINDOWS_CERT_PFX` / `WINDOWS_CERT_PASSWORD`).

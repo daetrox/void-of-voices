@@ -20,7 +20,7 @@ Entra en **[Releases](https://github.com/daetrox/void-of-voices/releases/latest)
 | 🪟 Windows | `VoidOfVoices-…-Windows-Setup.exe` | Instálalo como cualquier programa. |
 | 🪟 Windows sin instalar | `VoidOfVoices-…-Windows-portable.zip` | Descomprime y abre `VoidOfVoices.exe`. |
 
-> **En Windows** necesitas además el driver gratuito **[VB-Cable](https://vb-audio.com/Cable/)**: es el «cable» por el que tu voz cambiada llega a Discord y a las demás apps. En Linux no hace falta nada más.
+> **En Windows**, la primera vez la app te ofrece instalar el micrófono virtual **con un clic**. Es el driver gratuito [VB-Cable](https://vb-audio.com/Cable/): Void of Voices lo descarga de su web oficial, comprueba que es el archivo auténtico y abre su instalador. Solo tienes que pulsar *Install Driver*. En Linux no hace falta nada más.
 
 ## ✨ Qué puedes hacer
 

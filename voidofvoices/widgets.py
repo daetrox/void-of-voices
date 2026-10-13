@@ -30,7 +30,8 @@ QPushButton#pill {{
 QPushButton#pill:hover {{ border-color: {ACCENT}; }}
 QPushButton#pill:checked {{ background: #2f5e46; border-color: {ACCENT}; }}
 QPushButton#pill[warn="true"]:checked {{ background: #5e2f2f; border-color: #f07a5e; }}
-#banner {{ background: #3a3220; border: 1px solid #806a2e; border-radius: 8px; padding: 8px 12px; }}
+#banner {{ background: #3a3220; border: 1px solid #806a2e; border-radius: 8px; }}
+#banner QLabel {{ color: #f3e3b5; }}
 #key {{ color: {ACCENT}; font-family: monospace; }}
 QListWidget {{ background: #1c1d1f; border: 1px solid #3a3d41; border-radius: 6px; }}
 QScrollArea, #page {{ background: transparent; border: none; }}

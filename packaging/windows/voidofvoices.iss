@@ -26,10 +26,6 @@ ArchitecturesAllowed=x64compatible
 Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
-[CustomMessages]
-es.VBCable=Para que Discord y otras apps oigan tu voz necesitas el driver gratuito VB-Cable. ¿Abrir su web ahora?
-en.VBCable=For Discord and other apps to hear your voice you need the free VB-Cable driver. Open its website now?
-
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
@@ -42,13 +38,3 @@ Name: "{autodesktop}\Void of Voices"; Filename: "{app}\VoidOfVoices.exe"; Tasks:
 
 [Run]
 Filename: "{app}\VoidOfVoices.exe"; Description: "{cm:LaunchProgram,Void of Voices}"; Flags: nowait postinstall skipifsilent
-
-[Code]
-procedure CurStepChanged(CurStep: TSetupStep);
-var
-  ErrorCode: Integer;
-begin
-  if (CurStep = ssPostInstall) and not WizardSilent then
-    if MsgBox(ExpandConstant('{cm:VBCable}'), mbConfirmation, MB_YESNO) = IDYES then
-      ShellExec('open', 'https://vb-audio.com/Cable/', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
-end;

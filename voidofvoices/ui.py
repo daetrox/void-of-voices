@@ -6,7 +6,9 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QProcess, QSize, Qt, QTimer, QUrl
+import threading
+
+from PySide6.QtCore import QObject, QProcess, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QShortcut
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
@@ -30,6 +32,22 @@ from .windows import QuickVoicesWindow, SoundPanelWindow
 
 DEFAULT_SLOTS = ["Robot", "Demonio", "Femenina", "Ardilla", "Radio"]
 MY_SOUNDS = "Mis sonidos"
+
+
+class _VBCableJob(QObject):
+    """Descarga VB-Cable en segundo plano y avisa a la interfaz con señales."""
+    progress = Signal(float)
+    done = Signal(str)
+    failed = Signal(str)
+
+    def start(self):
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        try:
+            self.done.emit(str(devices.download_vbcable(self.progress.emit)))
+        except Exception as e:
+            self.failed.emit(str(e))
 
 
 class MainWindow(QMainWindow):
@@ -174,12 +192,18 @@ class MainWindow(QMainWindow):
 
         col = QVBoxLayout()
         if IS_WINDOWS:
-            self.vb_banner = QLabel(objectName="banner")
-            self.vb_banner.setWordWrap(True)
-            self.vb_banner.setOpenExternalLinks(True)
-            self.vb_banner.setText(T("⚠ Para que Discord u otras apps oigan tu voz, instala el driver gratuito "
-                                     "<a href='{}'>VB-Cable</a> y reinicia la app. Luego elige "
-                                     "«CABLE Output» como micrófono en esas apps.").format(devices.VBCABLE_URL))
+            self.vb_banner = QFrame(objectName="banner")
+            bl = QHBoxLayout(self.vb_banner)
+            bl.setContentsMargins(12, 8, 12, 8)
+            self.vb_text = QLabel(T("⚠ Falta el micrófono virtual para que Discord y otras apps oigan tu voz. "
+                                    "Se instala gratis con un clic (VB-Cable)."))
+            self.vb_text.setWordWrap(True)
+            self.vb_text.setOpenExternalLinks(True)
+            bl.addWidget(self.vb_text, 1)
+            self.vb_button = QPushButton(T("Instalar con 1 clic"), objectName="apply")
+            self.vb_button.setCursor(Qt.PointingHandCursor)
+            self.vb_button.clicked.connect(self.install_vbcable)
+            bl.addWidget(self.vb_button)
             self.vb_banner.setVisible(not devices.virtual_mic_ready())
             col.addWidget(self.vb_banner)
 
@@ -1219,6 +1243,58 @@ class MainWindow(QMainWindow):
         self.monitor_out.blockSignals(False)
         if IS_WINDOWS and hasattr(self, "vb_banner"):
             self.vb_banner.setVisible(not devices.virtual_mic_ready())
+
+    # ---------------------------------------------------- VB-Cable (Windows)
+    def install_vbcable(self):
+        if self.engine.running:
+            self.set_power(False)   # PortAudio no puede recargar dispositivos con el audio abierto
+        self.vb_button.setEnabled(False)
+        self.vb_text.setText(T("Descargando VB-Cable desde su web oficial…"))
+        self._vb_job = _VBCableJob()
+        self._vb_job.progress.connect(
+            lambda f: self.vb_text.setText(T("Descargando VB-Cable desde su web oficial… {} %").format(int(f * 100))))
+        self._vb_job.done.connect(self._vbcable_downloaded)
+        self._vb_job.failed.connect(self._vbcable_failed)
+        self._vb_job.start()
+
+    def _vbcable_downloaded(self, setup):
+        try:
+            devices.launch_vbcable_setup(setup)
+        except devices.VBCableError as e:
+            self._vbcable_failed(str(e))
+            return
+        self.vb_text.setText(T("En la ventana de VB-Cable pulsa «Install Driver» y acepta. "
+                               "Void of Voices lo detectará solo cuando termine."))
+        self._vb_tries = 0
+        self._vb_timer = QTimer(self, interval=3000, timeout=self._vbcable_poll)
+        self._vb_timer.start()
+
+    def _vbcable_poll(self):
+        self._vb_tries += 1
+        if not self.engine.running:
+            try:
+                devices.refresh()
+            except Exception:
+                pass
+        if devices.virtual_mic_ready():
+            self._vb_timer.stop()
+            self._fill_devices()
+            self.vb_banner.hide()
+            QMessageBox.information(self, APP_NAME, T("¡Micrófono virtual instalado! Enciende Void of Voices y, "
+                                                      "en Discord u otras apps, elige «CABLE Output» como micrófono."))
+        elif self._vb_tries >= 100:   # ~5 minutos
+            self._vb_timer.stop()
+            self.vb_button.setEnabled(True)
+            self.vb_text.setText(T("Si ya terminaste la instalación de VB-Cable, reinicia el PC para completarla."))
+
+    def _vbcable_failed(self, err):
+        self.vb_button.setEnabled(True)
+        if err == "cancelado":
+            self.vb_text.setText(T("Instalación cancelada. Pulsa el botón cuando quieras intentarlo de nuevo."))
+            return
+        QDesktopServices.openUrl(QUrl(devices.VBCABLE_URL))
+        self.vb_text.setText(T("No se pudo instalar automáticamente ({}). Te abrí la web oficial de VB-Cable "
+                               "para instalarlo desde ahí.").format(err))
 
     def _on_device(self):
         self.engine.source = self.device.currentData()

@@ -10,9 +10,63 @@ Los dispositivos se identifican por un id de texto estable (nombre en pactl o
 nombre del dispositivo en Windows).
 """
 
+import hashlib
+import tempfile
+import urllib.request
+import zipfile
+from pathlib import Path
+
 from . import IS_WINDOWS
 
 VBCABLE_URL = "https://vb-audio.com/Cable/"
+# Paquete oficial de VB-Cable. Su licencia no permite incluirlo en el instalador de
+# otra app, así que se descarga de la web oficial cuando el usuario lo pide y se
+# abre su propio instalador (donde acepta la licencia de VB-Audio).
+VBCABLE_PACK_URL = "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip"
+VBCABLE_PACK_SHA256 = "b950e39f01af1d04ea623c8f6d8eb9b6ea5c477c637295fabf20631c85116bfb"
+
+
+class VBCableError(Exception):
+    pass
+
+
+def download_vbcable(progress=None):
+    """Descarga y verifica el paquete oficial; devuelve la ruta del instalador x64.
+
+    La huella SHA-256 evita ejecutar con permisos de administrador un archivo
+    distinto del publicado por VB-Audio.
+    """
+    folder = Path(tempfile.gettempdir()) / "VoidOfVoices" / "vbcable"
+    folder.mkdir(parents=True, exist_ok=True)
+    zpath = folder / "VBCABLE_Driver_Pack.zip"
+    req = urllib.request.Request(VBCABLE_PACK_URL, headers={"User-Agent": "VoidOfVoices"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r, open(zpath, "wb") as f:
+            total = int(r.headers.get("Content-Length") or 0)
+            done = 0
+            while chunk := r.read(64 * 1024):
+                f.write(chunk)
+                done += len(chunk)
+                if progress and total:
+                    progress(done / total)
+    except OSError as e:
+        raise VBCableError(str(e))
+    if hashlib.sha256(zpath.read_bytes()).hexdigest() != VBCABLE_PACK_SHA256:
+        raise VBCableError("checksum")
+    with zipfile.ZipFile(zpath) as z:
+        z.extractall(folder / "pack")
+    setup = folder / "pack" / "VBCABLE_Setup_x64.exe"
+    if not setup.exists():
+        raise VBCableError("VBCABLE_Setup_x64.exe")
+    return setup
+
+
+def launch_vbcable_setup(setup):
+    """Abre el instalador de VB-Cable como administrador (Windows muestra el aviso UAC)."""
+    import ctypes
+    rc = ctypes.windll.shell32.ShellExecuteW(None, "runas", str(setup), None, str(Path(setup).parent), 1)
+    if rc <= 32:
+        raise VBCableError("cancelado" if rc == 5 else f"ShellExecute {rc}")
 
 if IS_WINDOWS:
     import sounddevice as sd
@@ -67,6 +121,12 @@ if IS_WINDOWS:
     def virtual_mic_ready():
         return virtual_output() is not None
 
+    def refresh():
+        """PortAudio guarda la lista de dispositivos al iniciarse: la recarga para
+        ver dispositivos nuevos (no usar con streams abiertos)."""
+        sd._terminate()
+        sd._initialize()
+
     def setup_virtual_mic():
         pass
 
@@ -96,6 +156,9 @@ else:
 
     def virtual_mic_ready():
         return True
+
+    def refresh():
+        pass
 
     def setup_virtual_mic():
         virtualmic.create()

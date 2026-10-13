@@ -27,10 +27,22 @@ EN = {
     "⇄ Normal / última voz": "⇄ Normal / last voice",
     "🪟 Selector de voces": "🪟 Voice picker", "🪟 Panel de sonidos": "🪟 Sound panel",
     "GUARDAR": "SAVE", "Guardar los ajustes actuales como predeterminados": "Save current settings as default",
-    "⚠ Para que Discord u otras apps oigan tu voz, instala el driver gratuito <a href='{}'>VB-Cable</a> "
-    "y reinicia la app. Luego elige «CABLE Output» como micrófono en esas apps.":
-        "⚠ For Discord or other apps to hear your voice, install the free <a href='{}'>VB-Cable</a> driver "
-        "and restart the app. Then pick “CABLE Output” as the microphone in those apps.",
+    "⚠ Falta el micrófono virtual para que Discord y otras apps oigan tu voz. Se instala gratis con un clic (VB-Cable).":
+        "⚠ The virtual microphone that lets Discord and other apps hear your voice is missing. "
+        "It installs for free with one click (VB-Cable).",
+    "Instalar con 1 clic": "Install with 1 click",
+    "Descargando VB-Cable desde su web oficial…": "Downloading VB-Cable from its official website…",
+    "Descargando VB-Cable desde su web oficial… {} %": "Downloading VB-Cable from its official website… {} %",
+    "En la ventana de VB-Cable pulsa «Install Driver» y acepta. Void of Voices lo detectará solo cuando termine.":
+        "In the VB-Cable window press “Install Driver” and accept. Void of Voices will detect it when it's done.",
+    "¡Micrófono virtual instalado! Enciende Void of Voices y, en Discord u otras apps, elige «CABLE Output» como micrófono.":
+        "Virtual microphone installed! Turn Void of Voices on and pick “CABLE Output” as the microphone in Discord or other apps.",
+    "Si ya terminaste la instalación de VB-Cable, reinicia el PC para completarla.":
+        "If you already finished installing VB-Cable, restart your PC to complete it.",
+    "Instalación cancelada. Pulsa el botón cuando quieras intentarlo de nuevo.":
+        "Installation cancelled. Press the button whenever you want to try again.",
+    "No se pudo instalar automáticamente ({}). Te abrí la web oficial de VB-Cable para instalarlo desde ahí.":
+        "Couldn't install automatically ({}). I opened the official VB-Cable website so you can install it from there.",
 
     # --- voces
     "＋ Guardar voz actual": "＋ Save current voice", "⬇ Importar…": "⬇ Import…", "⬆ Exportar…": "⬆ Export…",
