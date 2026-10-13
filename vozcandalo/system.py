@@ -50,9 +50,9 @@ def install_desktop_entry():
             shutil.copyfile(ICON_PATH, icon_dst)
         dst = data / "applications" / f"{APP_ID}.desktop"
         content = _desktop_entry()
-        if not dst.exists() or dst.read_text() != content:
+        if not dst.exists() or dst.read_text(encoding="utf-8") != content:
             dst.parent.mkdir(parents=True, exist_ok=True)
-            dst.write_text(content)
+            dst.write_text(content, encoding="utf-8")
     except OSError:
         pass
 
@@ -95,6 +95,6 @@ def set_autostart(enabled):
     f = _autostart_file()
     if enabled:
         f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_text(_desktop_entry(" --tray"))
+        f.write_text(_desktop_entry(" --tray"), encoding="utf-8")
     elif f.exists():
         f.unlink()

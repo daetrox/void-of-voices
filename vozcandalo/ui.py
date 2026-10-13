@@ -1435,7 +1435,7 @@ class MainWindow(QMainWindow):
         }
         data["language"] = self.lang.currentData() if hasattr(self, "lang") else language()
         CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CONFIG_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        CONFIG_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         if announce:
             self._flash(T("Ajustes guardados"))
 
@@ -1470,7 +1470,7 @@ def system_hotkeys_in_desktop():
 
 def _load_cfg():
     try:
-        return json.loads(CONFIG_FILE.read_text())
+        return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 

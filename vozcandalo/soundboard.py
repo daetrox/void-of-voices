@@ -29,7 +29,7 @@ def load_audio(path):
 
 def builtin_sounds():
     try:
-        items = json.loads((BUILTIN_DIR / "sounds.json").read_text())
+        items = json.loads((BUILTIN_DIR / "sounds.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     for it in items:

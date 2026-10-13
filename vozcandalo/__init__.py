@@ -39,7 +39,7 @@ def migrate_legacy():
     """Trae la configuración y los sonidos de cuando la app se llamaba Audiomodulator."""
     if not CONFIG_FILE.exists() and _LEGACY_CONFIG.exists():
         try:
-            cfg = json.loads(_LEGACY_CONFIG.read_text())
+            cfg = json.loads(_LEGACY_CONFIG.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return
         if _LEGACY_DATA.exists() and not DATA_DIR.exists():
@@ -47,4 +47,4 @@ def migrate_legacy():
         for u in cfg.get("user_sounds", []):
             u["path"] = u["path"].replace(str(_LEGACY_DATA), str(DATA_DIR))
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        CONFIG_FILE.write_text(json.dumps(cfg, indent=2, ensure_ascii=False))
+        CONFIG_FILE.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")

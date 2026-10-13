@@ -28,13 +28,13 @@ def export_voices(path, voices):
     data = {"type": _VOICE_TYPE, "version": 1, "app_version": __version__,
             "voices": [{"name": n, "params": {k: v[k] for k in VOICE_KEYS if k in v}}
                        for n, v in voices.items()]}
-    Path(path).write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    Path(path).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def import_voices(path):
     """Devuelve {nombre: parámetros} validados (valores numéricos dentro de rango)."""
     try:
-        data = json.loads(Path(path).read_text())
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
         raise PackError(str(e))
     if not isinstance(data, dict) or data.get("type") != _VOICE_TYPE:

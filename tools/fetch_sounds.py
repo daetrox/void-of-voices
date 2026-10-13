@@ -58,7 +58,7 @@ def process(src, max_s):
 
 
 def main():
-    sel = json.loads((ROOT / "tools" / "freesound_selection.json").read_text())
+    sel = json.loads((ROOT / "tools" / "freesound_selection.json").read_text(encoding="utf-8"))
     OUT.mkdir(parents=True, exist_ok=True)
     catalog = []
     with tempfile.TemporaryDirectory() as tmp:
@@ -81,7 +81,7 @@ def main():
         if (SOUNDS / "kenney" / f).exists():
             catalog.append({"id": f"builtin:kenney/{f}", "file": f"kenney/{f}",
                             "name": name, "name_en": name.strip("«»"), "icon": icon, "category": "Arcade"})
-    (SOUNDS / "sounds.json").write_text(json.dumps(catalog, indent=1, ensure_ascii=False))
+    (SOUNDS / "sounds.json").write_text(json.dumps(catalog, indent=1, ensure_ascii=False), encoding="utf-8")
 
     lines = ["# Créditos de sonidos", "",
              "Todos los sonidos incluidos tienen licencia **CC0** (dominio público); "
@@ -92,7 +92,7 @@ def main():
                      f"https://freesound.org/people/{s['author']}/sounds/{s['fs_id']}/")
     lines += ["", "## Kenney (kenney.nl)", "",
               "- Voces de *Voiceover Pack* y *Voiceover Pack: Fighter*, de Kenney Vleugels, vía OpenGameArt."]
-    (SOUNDS / "CREDITS.md").write_text("\n".join(lines) + "\n")
+    (SOUNDS / "CREDITS.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(len(catalog), "sonidos en el catálogo")
 
 
