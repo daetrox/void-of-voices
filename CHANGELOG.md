@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.1
+- La app pasa a llamarse **Void of Voices** (antes Vozcándalo). Migra sola la configuración, las voces, los sonidos, el lanzador y el inicio automático.
+- Windows: información de versión en el `.exe`, sin UPX y con el bootloader de PyInstaller compilado en la propia CI para reducir falsos positivos del antivirus. Firma digital opcional en la CI (secretos `WINDOWS_CERT_PFX` / `WINDOWS_CERT_PASSWORD`).
+- Extensiones `.vovoice` y `.vopack`; las antiguas `.vzvoice` y `.vzpack` se siguen importando.
+
 ## 0.2.0
 - Atajos de teclado globales (portal de KDE/GNOME en Linux, RegisterHotKey en Windows): voz normal ↔ última voz, 5 voces rápidas configurables, silencio, pulsar para hablar, encender/apagar, detener sonidos y abrir ventanas.
 - Ventana independiente «Selector de voces» y ventana «Panel de sonidos».

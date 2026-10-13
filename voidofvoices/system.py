@@ -37,6 +37,34 @@ StartupWMClass={APP_ID}
 """
 
 
+def remove_legacy_integration():
+    """Quita el lanzador, el icono y el autoarranque del nombre anterior (Vozcándalo)."""
+    old_id = "io.github.daetrox.Vozcandalo"
+    if IS_WINDOWS:
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY, 0,
+                                winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE) as k:
+                winreg.QueryValueEx(k, "Vozcandalo")
+                winreg.DeleteValue(k, "Vozcandalo")
+            set_autostart(True)   # se mantiene, con el nombre nuevo
+        except OSError:
+            pass
+        return
+    data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    cfg = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    old_autostart = cfg / "autostart" / f"{old_id}.desktop"
+    had_autostart = old_autostart.exists()
+    for f in (data / "applications" / f"{old_id}.desktop",
+              data / "icons" / "hicolor" / "scalable" / "apps" / f"{old_id}.svg", old_autostart):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+    if had_autostart:
+        set_autostart(True)
+
+
 def install_desktop_entry():
     """Instala (o actualiza) el lanzador en el menú de aplicaciones de Linux.
     También es necesario para que el portal de atajos globales reconozca la app."""
@@ -70,7 +98,7 @@ def autostart_enabled():
         import winreg
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY) as k:
-                winreg.QueryValueEx(k, "Vozcandalo")
+                winreg.QueryValueEx(k, "VoidOfVoices")
             return True
         except OSError:
             return False
@@ -84,11 +112,11 @@ def set_autostart(enabled):
         import winreg
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
             if enabled:
-                winreg.SetValueEx(k, "Vozcandalo", 0, winreg.REG_SZ,
+                winreg.SetValueEx(k, "VoidOfVoices", 0, winreg.REG_SZ,
                                   subprocess.list2cmdline(launch_command() + ["--tray"]))
             else:
                 try:
-                    winreg.DeleteValue(k, "Vozcandalo")
+                    winreg.DeleteValue(k, "VoidOfVoices")
                 except OSError:
                     pass
         return

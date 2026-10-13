@@ -1,4 +1,4 @@
-"""Importar y exportar voces (.vzvoice, JSON) y paquetes de sonidos (.vzpack, ZIP)."""
+"""Importar y exportar voces (.vovoice, JSON) y paquetes de sonidos (.vopack, ZIP)."""
 
 import json
 import uuid
@@ -9,10 +9,15 @@ from . import __version__
 from .dsp import Params, VOICE_KEYS
 from .soundboard import IMPORT_EXTS, USER_DIR, load_audio
 
-VOICE_EXT = ".vzvoice"
-PACK_EXT = ".vzpack"
-_VOICE_TYPE = "vozcandalo-voices"
-_PACK_TYPE = "vozcandalo-soundpack"
+VOICE_EXT = ".vovoice"
+PACK_EXT = ".vopack"
+_VOICE_TYPE = "voidofvoices-voices"
+_PACK_TYPE = "voidofvoices-soundpack"
+# Formatos de cuando la app se llamaba Vozcándalo (se siguen pudiendo importar).
+LEGACY_VOICE_EXT = ".vzvoice"
+LEGACY_PACK_EXT = ".vzpack"
+_VOICE_TYPES = (_VOICE_TYPE, "vozcandalo-voices")
+_PACK_TYPES = (_PACK_TYPE, "vozcandalo-soundpack")
 MAX_PACK_SOUNDS = 300
 MAX_SOUND_BYTES = 40 * 1024 * 1024
 
@@ -37,8 +42,8 @@ def import_voices(path):
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
         raise PackError(str(e))
-    if not isinstance(data, dict) or data.get("type") != _VOICE_TYPE:
-        raise PackError("no es un archivo de voces de Vozcándalo")
+    if not isinstance(data, dict) or data.get("type") not in _VOICE_TYPES:
+        raise PackError("no es un archivo de voces de Void of Voices")
     default = Params()
     out = {}
     for item in data.get("voices", [])[:200]:
@@ -90,8 +95,8 @@ def import_sound_pack(path):
             manifest = json.loads(z.read("manifest.json"))
         except (KeyError, ValueError):
             raise PackError("falta manifest.json")
-        if manifest.get("type") != _PACK_TYPE:
-            raise PackError("no es un paquete de sonidos de Vozcándalo")
+        if manifest.get("type") not in _PACK_TYPES:
+            raise PackError("no es un paquete de sonidos de Void of Voices")
         pack = str(manifest.get("name") or Path(path).stem).strip()[:40]
         names = set(z.namelist())
         USER_DIR.mkdir(parents=True, exist_ok=True)

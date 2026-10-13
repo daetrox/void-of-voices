@@ -44,7 +44,7 @@ EN = {
     "Primero guarda alguna voz con «＋ Guardar voz actual».": "First save a voice with “＋ Save current voice”.",
     "Exportar voces": "Export voices", "Importar voces": "Import voices",
     "Elige las voces que quieres compartir:": "Choose the voices you want to share:",
-    "Voces de Vozcándalo": "Vozcándalo voices",
+    "Voces de Void of Voices": "Void of Voices voices",
     "{} voz/voces exportada(s)": "{} voice(s) exported",
     "{} voz/voces importada(s) en «Mis voces»": "{} voice(s) imported into “My voices”",
     "Voz «{}» aplicada": "Voice “{}” applied", "Voz «{}»": "Voice “{}”", "Voz normal": "Normal voice",
@@ -52,9 +52,9 @@ EN = {
 
     # --- sonidos
     "Los sonidos se mezclan con tu voz en {}. Clic para reproducir (otro clic lo detiene). Clic derecho: renombrar, "
-    "icono, volumen, bucle, atajo. Arrastra aquí tus archivos de audio o paquetes .vzpack.":
+    "icono, volumen, bucle, atajo. Arrastra aquí tus archivos de audio o paquetes .vopack.":
         "Sounds are mixed with your voice into {}. Click to play (click again to stop). Right-click: rename, icon, "
-        "volume, loop, shortcut. Drop your audio files or .vzpack packs here.",
+        "volume, loop, shortcut. Drop your audio files or .vopack packs here.",
     "＋ Añadir sonidos…": "＋ Add sounds…", "📦 Importar paquete…": "📦 Import pack…",
     "📦 Exportar paquete…": "📦 Export pack…", "🪟 Panel": "🪟 Panel", "⏹ Detener todo": "⏹ Stop all",
     "Buscar sonido…": "Search sound…", "Volumen de sonidos": "Sound volume",

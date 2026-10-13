@@ -5,10 +5,10 @@ import subprocess
 
 from . import MIC_NAME
 
-SINK_NAME = "vozcandalo_sink"
-SOURCE_NAME = "vozcandalo_mic"
+SINK_NAME = "voidofvoices_sink"
+SOURCE_NAME = "voidofvoices_mic"
 # Nombres de versiones anteriores, para limpiar módulos que hayan quedado cargados.
-_LEGACY = ("audiomodulator_sink", "audiomodulator_mic")
+_LEGACY = ("vozcandalo_sink", "vozcandalo_mic", "audiomodulator_sink", "audiomodulator_mic")
 
 
 def _pactl(*args):
@@ -65,7 +65,7 @@ def create():
     _pactl("load-module", "module-null-sink",
            f"sink_name={SINK_NAME}", "channels=1", "channel_map=mono",
            "rate=48000",
-           "sink_properties=device.description=Vozcandalo_Salida")
+           "sink_properties=device.description=VoidOfVoices_Salida")
     _pactl("load-module", "module-remap-source",
            f"master={SINK_NAME}.monitor", f"source_name={SOURCE_NAME}",
            "channels=1", "channel_map=mono",

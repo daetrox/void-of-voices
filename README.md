@@ -1,10 +1,10 @@
-# 🎭 Vozcándalo
+# 🌌 Void of Voices
 
-**Haz un escándalo con tu voz.**
+**Tu voz entra en el vacío… y sale convertida en otra.**
 
-Vozcándalo cambia tu voz **mientras hablas**: puedes sonar como un robot, un demonio, una ardilla, un locutor de radio o un fantasma. También lanza sonidos de reacción (aplausos, trombón triste, ba-dum-tss…) en mitad de la partida o del directo. Tus amigos te oyen en **Discord, OBS, juegos o cualquier app** que use el micrófono.
+Void of Voices cambia tu voz **mientras hablas**: puedes sonar como un robot, un demonio, una ardilla, un locutor de radio o un fantasma. También lanza sonidos de reacción (aplausos, trombón triste, ba-dum-tss…) en mitad de la partida o del directo. Tus amigos te oyen en **Discord, OBS, juegos o cualquier app** que use el micrófono.
 
-![Vozcándalo](docs/captura-microfono.png)
+![Void of Voices](docs/captura-microfono.png)
 
 > 🐧 Linux · 🪟 Windows · Gratis y de código abierto · 🇪🇸 Español / 🇬🇧 English
 
@@ -12,13 +12,13 @@ Vozcándalo cambia tu voz **mientras hablas**: puedes sonar como un robot, un de
 
 ## ⬇️ Descargar
 
-Entra en **[Releases](https://github.com/daetrox/vozcandalo/releases/latest)** y baja la versión para tu sistema:
+Entra en **[Releases](https://github.com/daetrox/void-of-voices/releases/latest)** y baja la versión para tu sistema:
 
 | Sistema | Archivo | Cómo se abre |
 |---|---|---|
-| 🐧 Linux | `Vozcandalo-…-x86_64.AppImage` | Clic derecho → *Propiedades* → marca *Ejecutable*, y doble clic. |
-| 🪟 Windows | `Vozcandalo-…-Windows-Setup.exe` | Instálalo como cualquier programa. |
-| 🪟 Windows sin instalar | `Vozcandalo-…-Windows-portable.zip` | Descomprime y abre `Vozcandalo.exe`. |
+| 🐧 Linux | `VoidOfVoices-…-x86_64.AppImage` | Clic derecho → *Propiedades* → marca *Ejecutable*, y doble clic. |
+| 🪟 Windows | `VoidOfVoices-…-Windows-Setup.exe` | Instálalo como cualquier programa. |
+| 🪟 Windows sin instalar | `VoidOfVoices-…-Windows-portable.zip` | Descomprime y abre `VoidOfVoices.exe`. |
 
 > **En Windows** necesitas además el driver gratuito **[VB-Cable](https://vb-audio.com/Cable/)**: es el «cable» por el que tu voz cambiada llega a Discord y a las demás apps. En Linux no hace falta nada más.
 
@@ -29,16 +29,16 @@ Entra en **[Releases](https://github.com/daetrox/vozcandalo/releases/latest)** y
 - 🔊 **Soundboard con 52 sonidos reales.** Aplausos, abucheos, risas, grillos, trombón triste, bocina, gong, explosión, gato, perro… Añade los tuyos arrastrándolos a la ventana.
 - ⌨️ **Atajos que funcionan dentro del juego.** Cambia de voz, silénciate o habla solo mientras mantienes una tecla, sin salir de la partida.
 - 🪟 **Ventanas pequeñas.** Un selector de voces y un panel de sonidos que puedes dejar siempre a la vista.
-- 📦 **Comparte con tus amigos.** Exporta tus voces (`.vzvoice`) o un paquete con tus sonidos (`.vzpack`), y ellos solo tienen que arrastrarlos a su Vozcándalo.
+- 📦 **Comparte con tus amigos.** Exporta tus voces (`.vovoice`) o un paquete con tus sonidos (`.vopack`), y ellos solo tienen que arrastrarlos a su Void of Voices.
 - 🎧 **Micrófono más limpio.** Quita el ruido de fondo con IA (el ventilador, el teclado, la calle), suaviza las «eses» que pitan y equilibra el volumen.
 
 ![Banco de voces](docs/captura-voces.png)
 
 ## 🚀 Cómo empezar
 
-1. Abre Vozcándalo, elige tu micrófono arriba y pulsa el **botón grande** para encenderlo.
+1. Abre Void of Voices, elige tu micrófono arriba y pulsa el **botón grande** para encenderlo.
 2. En Discord (o la app que uses), ve a *Ajustes de voz* y elige como micrófono:
-   - en **Linux**: **Vozcandalo_Mic**;
+   - en **Linux**: **VoidOfVoices_Mic**;
    - en **Windows**: **CABLE Output (VB-Audio)**.
 3. Elige una voz… ¡y a hacer el escándalo! 🎉
 
@@ -60,8 +60,11 @@ En Linux, la primera vez el sistema te pedirá permiso para los atajos, y puedes
 
 ## ❓ Preguntas rápidas
 
+**Windows dice que la app es peligrosa o «no reconocida».**
+Es un falso positivo habitual en programas pequeños que aún no tienen firma digital de pago. El código es abierto, y GitHub compila cada versión de forma automática y pública. Si te aparece *«Windows protegió tu PC»*, pulsa *Más información → Ejecutar de todas formas*. Estamos trabajando en firmar las descargas.
+
 **No me oyen en Discord.**
-Comprueba que el botón grande pone *ENCENDIDO* y que en Discord el micrófono es *Vozcandalo_Mic* (Linux) o *CABLE Output* (Windows).
+Comprueba que el botón grande pone *ENCENDIDO* y que en Discord el micrófono es *VoidOfVoices_Mic* (Linux) o *CABLE Output* (Windows).
 
 **Se me oye con un poco de retraso.**
 En *Ajustes → Motor de tono*, elige *Baja latencia*. Ganas rapidez a cambio de un poco de naturalidad en los cambios de tono.
@@ -70,7 +73,7 @@ En *Ajustes → Motor de tono*, elige *Baja latencia*. Ganas rapidez a cambio de
 Ve a *Mejora* y elige el perfil *Llamada limpia* o *Streaming*.
 
 **¿Puedo cerrar la ventana?**
-Sí: Vozcándalo sigue funcionando en la bandeja del sistema (junto al reloj). Para cerrarlo del todo, usa *Salir* en su menú.
+Sí: Void of Voices sigue funcionando en la bandeja del sistema (junto al reloj). Para cerrarlo del todo, usa *Salir* en su menú.
 
 ![Soundboard](docs/captura-sonidos.png)
 
@@ -80,8 +83,8 @@ Sí: Vozcándalo sigue funcionando en la bandeja del sistema (junto al reloj). P
 <summary>Ejecutar desde el código fuente</summary>
 
 ```bash
-git clone https://github.com/daetrox/vozcandalo.git
-cd vozcandalo
+git clone https://github.com/daetrox/void-of-voices.git
+cd voidofvoices
 ./run.sh          # la primera vez prepara el entorno (Python 3.10+)
 ```
 
@@ -96,12 +99,12 @@ En Linux necesita PipeWire (o PulseAudio) con `pactl`, `parec` y `pacat`, que vi
 
 | Carpeta | Qué hay |
 |---|---|
-| `vozcandalo/dsp.py` | Cadena de procesado, vocoder, RNNoise, banco de voces |
-| `vozcandalo/engine.py` | Hilo de audio (backends PipeWire y WASAPI) |
-| `vozcandalo/hotkeys.py` | Atajos globales (portal XDG / RegisterHotKey) |
-| `vozcandalo/ui.py`, `windows.py`, `widgets.py` | Interfaz |
-| `vozcandalo/packs.py` | Exportar e importar voces y paquetes de sonidos |
-| `vozcandalo/i18n*.py` | Traducciones |
+| `voidofvoices/dsp.py` | Cadena de procesado, vocoder, RNNoise, banco de voces |
+| `voidofvoices/engine.py` | Hilo de audio (backends PipeWire y WASAPI) |
+| `voidofvoices/hotkeys.py` | Atajos globales (portal XDG / RegisterHotKey) |
+| `voidofvoices/ui.py`, `windows.py`, `widgets.py` | Interfaz |
+| `voidofvoices/packs.py` | Exportar e importar voces y paquetes de sonidos |
+| `voidofvoices/i18n*.py` | Traducciones |
 | `sounds/` | Sonidos incluidos; `tools/fetch_sounds.py` los vuelve a descargar |
 | `packaging/` | PyInstaller, AppImage e instalador de Windows |
 

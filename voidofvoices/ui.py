@@ -1,4 +1,4 @@
-"""Interfaz gráfica de Vozcándalo (PySide6)."""
+"""Interfaz gráfica de Void of Voices (PySide6)."""
 
 import json
 import os
@@ -290,7 +290,7 @@ class MainWindow(QMainWindow):
         box, c = card("Soundboard",
                       T("Los sonidos se mezclan con tu voz en {}. Clic para reproducir (otro clic lo detiene). "
                         "Clic derecho: renombrar, icono, volumen, bucle, atajo. Arrastra aquí tus archivos de "
-                        "audio o paquetes .vzpack.").format(MIC_NAME))
+                        "audio o paquetes .vopack.").format(MIC_NAME))
         row = QHBoxLayout()
         for text, slot in (("＋ Añadir sonidos…", self._pick_sounds),
                            ("📦 Importar paquete…", self._import_pack_dialog),
@@ -698,7 +698,7 @@ class MainWindow(QMainWindow):
             return
         default = str(Path.home() / (("mis-voces" if len(names) > 1 else names[0]) + packs.VOICE_EXT))
         path, _ = QFileDialog.getSaveFileName(self, T("Exportar voces"), default,
-                                              T("Voces de Vozcándalo") + f" (*{packs.VOICE_EXT})")
+                                              T("Voces de Void of Voices") + f" (*{packs.VOICE_EXT})")
         if not path:
             return
         if not path.endswith(packs.VOICE_EXT):
@@ -708,7 +708,7 @@ class MainWindow(QMainWindow):
 
     def _import_voices_dialog(self):
         path, _ = QFileDialog.getOpenFileName(self, T("Importar voces"), str(Path.home()),
-                                              T("Voces de Vozcándalo") + f" (*{packs.VOICE_EXT} *.json)")
+                                              T("Voces de Void of Voices") + f" (*{packs.VOICE_EXT} *{packs.LEGACY_VOICE_EXT} *.json)")
         if path:
             self._import_voices(path)
 
@@ -1041,7 +1041,7 @@ class MainWindow(QMainWindow):
 
     def _import_pack_dialog(self):
         path, _ = QFileDialog.getOpenFileName(self, T("Importar paquete de sonidos"), str(Path.home()),
-                                              T("Paquete de sonidos") + f" (*{packs.PACK_EXT} *.zip)")
+                                              T("Paquete de sonidos") + f" (*{packs.PACK_EXT} *{packs.LEGACY_PACK_EXT} *.zip)")
         if path:
             self._import_pack(path)
 
@@ -1070,9 +1070,9 @@ class MainWindow(QMainWindow):
         audio = []
         for f in files:
             ext = Path(f).suffix.lower()
-            if ext == packs.PACK_EXT:
+            if ext in (packs.PACK_EXT, packs.LEGACY_PACK_EXT):
                 self._import_pack(f)
-            elif ext == packs.VOICE_EXT:
+            elif ext in (packs.VOICE_EXT, packs.LEGACY_VOICE_EXT):
                 self._import_voices(f)
             else:
                 audio.append(f)
@@ -1507,7 +1507,7 @@ def main():
     app.setQuitOnLastWindowClosed(False)
 
     # Una sola instancia: si ya hay una abierta, se le pide que se muestre.
-    server_name = f"vozcandalo-{os.environ.get('USER') or os.environ.get('USERNAME') or 'user'}"
+    server_name = f"voidofvoices-{os.environ.get('USER') or os.environ.get('USERNAME') or 'user'}"
     sock = QLocalSocket()
     sock.connectToServer(server_name)
     if sock.waitForConnected(300):
@@ -1522,6 +1522,7 @@ def main():
     migrate_legacy()
     cfg = _load_cfg()
     set_language(cfg.get("language"))
+    system.remove_legacy_integration()
     system.install_desktop_entry()
     app.setStyle("Fusion")
     app.setPalette(dark_palette())

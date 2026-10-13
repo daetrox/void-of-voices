@@ -66,7 +66,7 @@ def main():
             dst = OUT / f"{s['fs_id']}.ogg"
             if not dst.exists():
                 mp3 = Path(tmp) / f"{s['fs_id']}.mp3"
-                req = urllib.request.Request(s["url"], headers={"User-Agent": "Vozcandalo"})
+                req = urllib.request.Request(s["url"], headers={"User-Agent": "VoidOfVoices"})
                 mp3.write_bytes(urllib.request.urlopen(req, timeout=60).read())
                 y = process(mp3, s["max_s"])
                 with AudioFile(str(dst), "w", FS, 1) as f:

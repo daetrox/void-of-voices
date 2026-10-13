@@ -24,7 +24,7 @@ _FMT = ["--raw", "--format=float32le", f"--rate={SAMPLE_RATE}", "--channels=1"]
 def _pacat(sink, latency_ms, name):
     return subprocess.Popen(
         ["pacat", "--playback", *_FMT, f"--latency-msec={latency_ms}", "-d", sink,
-         "--client-name=Vozcandalo", f"--stream-name={name}"],
+         "--client-name=VoidOfVoices", f"--stream-name={name}"],
         stdin=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
 
 
@@ -48,7 +48,7 @@ class _PulseIO:
         self.latency = latency_ms
         self.rec = subprocess.Popen(
             ["parec", *_FMT, f"--latency-msec={latency_ms}", "-d", source,
-             "--client-name=Vozcandalo", "--stream-name=Entrada"],
+             "--client-name=VoidOfVoices", "--stream-name=Entrada"],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
         self.out = _pacat(out_dev, latency_ms, "Micrófono virtual") if out_dev else None
         self.mon = None

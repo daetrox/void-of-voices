@@ -31,23 +31,28 @@ jobs:
       - name: Prueba rápida
         run: python main.py --selftest
       - name: PyInstaller
-        run: pyinstaller --noconfirm packaging/vozcandalo.spec
+        run: pyinstaller --noconfirm packaging/voidofvoices.spec
       - name: Prueba del ejecutable
-        run: dist/Vozcandalo/vozcandalo --selftest
+        run: dist/VoidOfVoices/voidofvoices --selftest
       - name: AppImage
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           [ "$GITHUB_REF_TYPE" = "tag" ] || VERSION="dev-${GITHUB_SHA::7}"
-          packaging/linux/build_appimage.sh "$VERSION" dist/Vozcandalo
-          ./Vozcandalo-*-x86_64.AppImage --appimage-extract-and-run --selftest
+          packaging/linux/build_appimage.sh "$VERSION" dist/VoidOfVoices
+          ./VoidOfVoices-*-x86_64.AppImage --appimage-extract-and-run --selftest
       - uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: Vozcandalo-*-x86_64.AppImage
+          path: VoidOfVoices-*-x86_64.AppImage
 
   windows:
     name: Windows
     runs-on: windows-latest
+    env:
+      # Firma opcional: se activa sola si existen estos secretos en el repositorio
+      # (certificado de firma de código en .pfx codificado en base64 y su contraseña).
+      WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -56,16 +61,39 @@ jobs:
       - name: Dependencias de Python
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install -r requirements.txt
           pip install --no-deps pyrnnoise
+      - name: PyInstaller con bootloader compilado aquí
+        # El bootloader precompilado de PyInstaller lo comparten muchos programas
+        # (también malware) y los antivirus lo marcan; compilarlo evita esa firma.
+        shell: bash
+        run: |
+          pip download pyinstaller --no-binary :all: --no-deps -d pyi-src
+          tar -xzf pyi-src/pyinstaller-*.tar.gz -C pyi-src
+          cd pyi-src/pyinstaller-*/bootloader
+          python ./waf all --target-arch=64bit
+          cd ..
+          pip install .
+          pyinstaller --version
       - name: Prueba rápida
         run: python main.py --selftest
       - name: PyInstaller
-        run: pyinstaller --noconfirm packaging/vozcandalo.spec
+        run: pyinstaller --noconfirm packaging/voidofvoices.spec
+      - name: Firmar el ejecutable
+        if: env.WINDOWS_CERT_PFX != ''
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cert.pfx", [Convert]::FromBase64String($env:WINDOWS_CERT_PFX))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+                       Where-Object FullName -match "x64" | Select-Object -Last 1).FullName
+          "SIGNTOOL=$signtool" | Out-File -FilePath $env:GITHUB_ENV -Append
+          & $signtool sign /f "$env:RUNNER_TEMP\cert.pfx" /p "$env:WINDOWS_CERT_PASSWORD" /fd SHA256 `
+            /tr http://timestamp.digicert.com /td SHA256 /d "Void of Voices" dist\VoidOfVoices\VoidOfVoices.exe
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Prueba del ejecutable
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath dist\Vozcandalo\Vozcandalo.exe -ArgumentList "--selftest" -Wait -PassThru -NoNewWindow
+          $p = Start-Process -FilePath dist\VoidOfVoices\VoidOfVoices.exe -ArgumentList "--selftest" -Wait -PassThru -NoNewWindow
           if ($p.ExitCode -ne 0) { exit 1 }
       - name: Versión
         id: ver
@@ -74,20 +102,28 @@ jobs:
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then echo "v=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"; else echo "v=0.0.0-dev" >> "$GITHUB_OUTPUT"; fi
       - name: ZIP portable
         shell: pwsh
-        run: Compress-Archive -Path dist\Vozcandalo -DestinationPath "Vozcandalo-${{ steps.ver.outputs.v }}-Windows-portable.zip"
+        run: Compress-Archive -Path dist\VoidOfVoices -DestinationPath "VoidOfVoices-${{ steps.ver.outputs.v }}-Windows-portable.zip"
       - name: Instalador (Inno Setup)
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
-          & $iscc "/DAppVersion=${{ steps.ver.outputs.v }}" packaging\windows\vozcandalo.iss
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.v }}" packaging\windows\voidofvoices.iss
           if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Firmar el instalador
+        if: env.WINDOWS_CERT_PFX != ''
+        shell: pwsh
+        run: |
+          & $env:SIGNTOOL sign /f "$env:RUNNER_TEMP\cert.pfx" /p "$env:WINDOWS_CERT_PASSWORD" /fd SHA256 `
+            /tr http://timestamp.digicert.com /td SHA256 /d "Void of Voices" (Get-Item VoidOfVoices-*-Windows-Setup.exe).FullName
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Remove-Item "$env:RUNNER_TEMP\cert.pfx"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
           path: |
-            Vozcandalo-*-Windows-portable.zip
-            Vozcandalo-*-Windows-Setup.exe
+            VoidOfVoices-*-Windows-portable.zip
+            VoidOfVoices-*-Windows-Setup.exe
 
   release:
     name: Publicar en la release
@@ -102,7 +138,7 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          name: Vozcándalo ${{ github.ref_name }}
+          name: Void of Voices ${{ github.ref_name }}
           body_path: docs/release-notes/${{ github.ref_name }}.md
           files: out/*
           fail_on_unmatched_files: true
