@@ -131,6 +131,8 @@ EN = {
     "Atajos globales activos. Puedes cambiar las teclas en la configuración del sistema.":
         "Global shortcuts active. You can change the keys in your system settings.",
     "Atajos globales activos.": "Global shortcuts active.",
+    "Hyprland no asigna teclas a los atajos de las apps. Añade estas líneas a tu configuración de Hyprland:":
+        "Hyprland doesn't assign keys to app shortcuts. Add these lines to your Hyprland config:",
     "Atajos ocupados por otra app: {}": "Shortcuts taken by another app: {}",
     "Idioma:": "Language:",
     "El idioma se aplicará al reiniciar la app. ¿Reiniciar ahora?": "The language will change when the app restarts. Restart now?",

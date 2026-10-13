@@ -48,6 +48,20 @@ def to_portal(qt_seq):
     return "+".join(out)
 
 
+def hyprland_binds(lua=False):
+    """Líneas para la config de Hyprland (clásica o Lua): su portal registra
+    los atajos pero no les asigna teclas (ignora preferred_trigger)."""
+    lines = []
+    for sid, _, trig in ACTIONS:
+        *mods, key = trig.split("+")
+        key = key.upper() if len(key) == 1 else key
+        if lua:
+            lines.append(f'hl.bind("{" + ".join([*mods, key])}", hl.dsp.global("{APP_ID}:{sid}"))')
+        else:
+            lines.append(f"bind = {' '.join(mods)}, {key}, global, {APP_ID}:{sid}")
+    return "\n".join(lines)
+
+
 class GlobalHotkeys(QObject):
     activated = Signal(str)
     deactivated = Signal(str)

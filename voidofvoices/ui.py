@@ -24,7 +24,7 @@ from . import soundboard as sb
 from .dsp import (ENHANCE_PRESETS, EQ_BANDS, QUICK_VOICES, VOICE_BANK, VOICE_KEYS, Denoiser,
                   Params, all_voices)
 from .engine import AudioEngine, Preview
-from .hotkeys import ACTIONS, GlobalHotkeys, pretty, to_portal
+from .hotkeys import ACTIONS, GlobalHotkeys, hyprland_binds, pretty, to_portal
 from .i18n import LANGUAGES, T, language, set_language
 from .widgets import (SLIDERS, STYLE, CheckListDialog, LevelMeter, ParamSlider, RoundToggle,
                       card, dark_palette, glyph_icon, key_capture, scroll_page)
@@ -501,6 +501,7 @@ class MainWindow(QMainWindow):
         box, c = card("Atajos de teclado", "Funcionan aunque estés dentro de un juego o de otra app.")
         self.hotkey_status = QLabel(objectName="muted")
         self.hotkey_status.setWordWrap(True)
+        self.hotkey_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
         c.addWidget(self.hotkey_status)
         self.hotkey_grid = QGridLayout()
         self.hotkey_grid.setHorizontalSpacing(14)
@@ -1127,7 +1128,13 @@ class MainWindow(QMainWindow):
     def _on_hotkeys_changed(self, triggers):
         for sid, lbl in self.hotkey_labels.items():
             lbl.setText(triggers.get(sid) or "—")
-        if self.hotkeys.backend == "portal":
+        if self.hotkeys.backend == "portal" and not any(triggers.values()) and \
+                "hyprland" in os.environ.get("XDG_CURRENT_DESKTOP", "").lower():
+            cfg = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "hypr"
+            self.hotkey_status.setText(T("Hyprland no asigna teclas a los atajos de las apps. "
+                                         "Añade estas líneas a tu configuración de Hyprland:")
+                                       + "\n\n" + hyprland_binds(lua=(cfg / "hyprland.lua").exists()))
+        elif self.hotkeys.backend == "portal":
             self.hotkey_status.setText(T("Atajos globales activos. Puedes cambiar las teclas en la "
                                          "configuración del sistema."))
         elif self.hotkeys.backend == "windows":
