@@ -1568,11 +1568,19 @@ def selftest():
     p.set_params(params)
     x = (np.random.default_rng(0).standard_normal(48000) * 0.1).astype(np.float32)
     y = np.concatenate([p.process(x[i:i + 256]) for i in range(0, len(x), 256)])
+    # Que la voz cambie de verdad: un tono de 220 Hz a +12 semitonos debe salir a ~440 Hz.
+    p = Processor()
+    p.set_params(Params(pitch=12))
+    t = np.arange(48000) / 48000
+    tone = (0.3 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
+    out = np.concatenate([p.process(tone[i:i + 256]) for i in range(0, len(tone), 256)])[24000:]
+    peak = float(np.argmax(np.abs(np.fft.rfft(out))) * 48000 / len(out))
     sounds = builtin_sounds()
     data = load_audio(sounds[0]["path"])
-    ok = bool(np.isfinite(y).all()) and Denoiser.available and len(sounds) > 40 and len(data) > 1000
+    dsp_ok = bool(np.isfinite(y).all()) and abs(peak - 440) < 20
+    ok = dsp_ok and Denoiser.available and len(sounds) > 40 and len(data) > 1000
     print(f"{APP_NAME} {__version__} selftest: rnnoise={Denoiser.available} sonidos={len(sounds)} "
-          f"dsp={'ok' if np.isfinite(y).all() else 'ERROR'} -> {'OK' if ok else 'FALLO'}")
+          f"tono={peak:.0f}Hz dsp={'ok' if dsp_ok else 'ERROR'} -> {'OK' if ok else 'FALLO'}")
     return 0 if ok else 1
 
 
