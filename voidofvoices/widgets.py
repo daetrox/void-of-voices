@@ -15,7 +15,7 @@ from .i18n import T
 
 ACCENT = "#5ef0a0"
 STYLE = f"""
-* {{ font-family: "Inter", "Noto Sans", sans-serif; }}
+* {{ font-family: "Inter", "Noto Sans", "Twemoji Mozilla", sans-serif; }}
 QMainWindow, #root, #window {{ background: #232527; }}
 QToolButton#voiceSmall {{
     background: #2a2c2f; border: 1px solid #3f6e57; border-radius: 8px;
@@ -146,6 +146,7 @@ def glyph_icon(text, size=28):
     pm.fill(Qt.transparent)
     p = QPainter(pm)
     f = QFont()
+    f.setFamilies([f.family(), "Twemoji Mozilla"])
     f.setPixelSize(int(size * 1.5))
     p.setFont(f)
     p.setPen(QColor("#d9dcdf"))

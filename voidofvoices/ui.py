@@ -9,7 +9,7 @@ from pathlib import Path
 import threading
 
 from PySide6.QtCore import QObject, QProcess, QSize, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QDesktopServices, QFontDatabase, QIcon, QKeySequence, QShortcut
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QToolButton, QVBoxLayout, QWidget,
 )
 
-from . import (APP_ID, APP_NAME, CONFIG_FILE, ICON_PATH, IS_WINDOWS, MIC_NAME, REPO_URL,
+from . import (APP_ID, APP_NAME, CONFIG_FILE, EMOJI_FONT, ICON_PATH, IS_WINDOWS, MIC_NAME, REPO_URL,
                __version__, devices, migrate_legacy, packs, system)
 from . import soundboard as sb
 from .dsp import (ENHANCE_PRESETS, EQ_BANDS, QUICK_VOICES, VOICE_BANK, VOICE_KEYS, Denoiser,
@@ -1580,6 +1580,7 @@ def main():
     app.setApplicationVersion(__version__)
     app.setDesktopFileName(APP_ID)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
+    QFontDatabase.addApplicationFont(str(EMOJI_FONT))
     app.setQuitOnLastWindowClosed(False)
 
     # Una sola instancia: si ya hay una abierta, se le pide que se muestre.

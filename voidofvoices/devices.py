@@ -101,9 +101,15 @@ if IS_WINDOWS:
                 if not d["name"].startswith("CABLE Input")]
 
     def _default(kind):
+        """Predeterminado de Windows, salvo que sea VB-Cable (su instalador suele
+        ponerse por defecto): leeríamos/escucharíamos nuestro propio micrófono virtual."""
         api = sd.query_hostapis(_hostapi())
         idx = api["default_input_device" if kind == "input" else "default_output_device"]
-        return sd.query_devices(idx)["name"] if idx >= 0 else None
+        name = sd.query_devices(idx)["name"] if idx >= 0 else None
+        if name and not name.startswith("CABLE"):
+            return name
+        real = list_inputs() if kind == "input" else list_outputs()
+        return real[0][0] if real else None
 
     def default_input():
         return _default("input")
