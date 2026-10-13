@@ -9,10 +9,10 @@ from pathlib import Path
 import numpy as np
 from pedalboard.io import AudioFile
 
-from . import DATA_DIR
+from . import DATA_DIR, RESOURCE_DIR
 from .dsp import SAMPLE_RATE
 
-BUILTIN_DIR = Path(__file__).resolve().parent.parent / "sounds"
+BUILTIN_DIR = RESOURCE_DIR / "sounds"
 USER_DIR = DATA_DIR / "sounds"
 IMPORT_EXTS = (".wav", ".mp3", ".ogg", ".flac", ".aiff", ".aif")
 MAX_SECONDS = 120

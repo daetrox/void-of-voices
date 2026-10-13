@@ -7,7 +7,8 @@
   "name": "Aplausos",
   "icon": "👏",
   "category": "Reacciones",
-  "max_s": 7
+  "max_s": 7,
+  "name_en": "Applause"
  },
  {
   "fs_id": 346689,
@@ -17,7 +18,8 @@
   "name": "Ovación",
   "icon": "🙌",
   "category": "Reacciones",
-  "max_s": 6
+  "max_s": 6,
+  "name_en": "Cheering"
  },
  {
   "fs_id": 17121,
@@ -27,7 +29,8 @@
   "name": "Risas del público",
   "icon": "😂",
   "category": "Reacciones",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Audience laugh"
  },
  {
   "fs_id": 324893,
@@ -37,7 +40,8 @@
   "name": "Abucheo",
   "icon": "👎",
   "category": "Reacciones",
-  "max_s": 6
+  "max_s": 6,
+  "name_en": "Booing"
  },
  {
   "fs_id": 124996,
@@ -47,7 +51,8 @@
   "name": "Aww",
   "icon": "🥺",
   "category": "Reacciones",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Aww"
  },
  {
   "fs_id": 264376,
@@ -57,7 +62,8 @@
   "name": "Sorpresa (ooh)",
   "icon": "😮",
   "category": "Reacciones",
-  "max_s": 4
+  "max_s": 4,
+  "name_en": "Gasp (ooh)"
  },
  {
   "fs_id": 398933,
@@ -67,7 +73,8 @@
   "name": "Wow",
   "icon": "🤩",
   "category": "Reacciones",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Wow"
  },
  {
   "fs_id": 241258,
@@ -77,7 +84,8 @@
   "name": "Silbido",
   "icon": "😏",
   "category": "Reacciones",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Wolf whistle"
  },
  {
   "fs_id": 169826,
@@ -87,7 +95,8 @@
   "name": "Risa malvada",
   "icon": "😈",
   "category": "Reacciones",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Evil laugh"
  },
  {
   "fs_id": 822935,
@@ -97,7 +106,8 @@
   "name": "Grillos",
   "icon": "🦗",
   "category": "Reacciones",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Crickets"
  },
  {
   "fs_id": 175409,
@@ -107,7 +117,8 @@
   "name": "Trombón triste",
   "icon": "🎺",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Sad trombone"
  },
  {
   "fs_id": 383898,
@@ -117,7 +128,8 @@
   "name": "Ba-dum-tss",
   "icon": "🥁",
   "category": "Comedia",
-  "max_s": 4
+  "max_s": 4,
+  "name_en": "Ba-dum-tss"
  },
  {
   "fs_id": 197763,
@@ -127,7 +139,8 @@
   "name": "Redoble",
   "icon": "🪘",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Drum roll"
  },
  {
   "fs_id": 71853,
@@ -137,7 +150,8 @@
   "name": "Scratch de disco",
   "icon": "💿",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Record scratch"
  },
  {
   "fs_id": 131930,
@@ -147,7 +161,8 @@
   "name": "Bocina",
   "icon": "📯",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Air horn"
  },
  {
   "fs_id": 510496,
@@ -157,7 +172,8 @@
   "name": "Boing",
   "icon": "🪀",
   "category": "Comedia",
-  "max_s": 3
+  "max_s": 3,
+  "name_en": "Boing"
  },
  {
   "fs_id": 517633,
@@ -167,7 +183,8 @@
   "name": "Silbato deslizante",
   "icon": "🎶",
   "category": "Comedia",
-  "max_s": 4
+  "max_s": 4,
+  "name_en": "Slide whistle"
  },
  {
   "fs_id": 266450,
@@ -177,7 +194,8 @@
   "name": "Pedo",
   "icon": "💨",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Fart"
  },
  {
   "fs_id": 570266,
@@ -187,7 +205,8 @@
   "name": "Eructo",
   "icon": "🤢",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Burp"
  },
  {
   "fs_id": 486629,
@@ -197,7 +216,8 @@
   "name": "Gong",
   "icon": "🔔",
   "category": "Comedia",
-  "max_s": 6
+  "max_s": 6,
+  "name_en": "Gong"
  },
  {
   "fs_id": 418526,
@@ -207,7 +227,8 @@
   "name": "Fanfarria (tadá)",
   "icon": "🎉",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Fanfare (ta-da)"
  },
  {
   "fs_id": 213101,
@@ -217,7 +238,8 @@
   "name": "Tensión dramática",
   "icon": "😱",
   "category": "Comedia",
-  "max_s": 3
+  "max_s": 3,
+  "name_en": "Dramatic sting"
  },
  {
   "fs_id": 195116,
@@ -227,7 +249,8 @@
   "name": "Pitido de censura",
   "icon": "🤬",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Censor beep"
  },
  {
   "fs_id": 164089,
@@ -237,7 +260,8 @@
   "name": "Incorrecto (buzzer)",
   "icon": "❌",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Wrong (buzzer)"
  },
  {
   "fs_id": 243701,
@@ -247,7 +271,8 @@
   "name": "Correcto",
   "icon": "✅",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Correct"
  },
  {
   "fs_id": 184438,
@@ -257,7 +282,8 @@
   "name": "Caja registradora",
   "icon": "💰",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Cash register"
  },
  {
   "fs_id": 709925,
@@ -267,7 +293,8 @@
   "name": "Campanilla",
   "icon": "🛎",
   "category": "Comedia",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Service bell"
  },
  {
   "fs_id": 423799,
@@ -277,7 +304,8 @@
   "name": "Whoosh",
   "icon": "💨",
   "category": "Acción",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Whoosh"
  },
  {
   "fs_id": 162369,
@@ -287,7 +315,8 @@
   "name": "Puñetazo",
   "icon": "👊",
   "category": "Acción",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Punch"
  },
  {
   "fs_id": 861043,
@@ -297,7 +326,8 @@
   "name": "Cristal roto",
   "icon": "🪟",
   "category": "Acción",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Glass break"
  },
  {
   "fs_id": 165911,
@@ -307,7 +337,8 @@
   "name": "Explosión",
   "icon": "💥",
   "category": "Acción",
-  "max_s": 5
+  "max_s": 5,
+  "name_en": "Explosion"
  },
  {
   "fs_id": 652690,
@@ -317,7 +348,8 @@
   "name": "Trueno",
   "icon": "⛈",
   "category": "Acción",
-  "max_s": 7
+  "max_s": 7,
+  "name_en": "Thunder"
  },
  {
   "fs_id": 235592,
@@ -327,7 +359,8 @@
   "name": "Grito",
   "icon": "😱",
   "category": "Acción",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Scream"
  },
  {
   "fs_id": 688735,
@@ -337,7 +370,8 @@
   "name": "Latido",
   "icon": "💓",
   "category": "Acción",
-  "max_s": 5
+  "max_s": 5,
+  "name_en": "Heartbeat"
  },
  {
   "fs_id": 154398,
@@ -347,7 +381,8 @@
   "name": "Beso",
   "icon": "💋",
   "category": "Cotidianos",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Kiss"
  },
  {
   "fs_id": 151240,
@@ -357,7 +392,8 @@
   "name": "Bostezo",
   "icon": "🥱",
   "category": "Cotidianos",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Yawn"
  },
  {
   "fs_id": 114609,
@@ -367,7 +403,8 @@
   "name": "Ronquido",
   "icon": "😴",
   "category": "Cotidianos",
-  "max_s": 7
+  "max_s": 7,
+  "name_en": "Snore"
  },
  {
   "fs_id": 528111,
@@ -377,7 +414,8 @@
   "name": "Teléfono",
   "icon": "☎",
   "category": "Cotidianos",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Phone ring"
  },
  {
   "fs_id": 256513,
@@ -387,7 +425,8 @@
   "name": "Llamar a la puerta",
   "icon": "🚪",
   "category": "Cotidianos",
-  "max_s": 4
+  "max_s": 4,
+  "name_en": "Door knock"
  },
  {
   "fs_id": 709948,
@@ -397,7 +436,8 @@
   "name": "Timbre",
   "icon": "🔔",
   "category": "Cotidianos",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Doorbell"
  },
  {
   "fs_id": 625501,
@@ -407,7 +447,8 @@
   "name": "Perro",
   "icon": "🐶",
   "category": "Animales",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Dog"
  },
  {
   "fs_id": 110011,
@@ -417,7 +458,8 @@
   "name": "Gato",
   "icon": "🐱",
   "category": "Animales",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Cat"
  },
  {
   "fs_id": 435508,
@@ -427,7 +469,8 @@
   "name": "Gallo",
   "icon": "🐓",
   "category": "Animales",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Rooster"
  },
  {
   "fs_id": 558858,
@@ -437,6 +480,7 @@
   "name": "Pato",
   "icon": "🦆",
   "category": "Animales",
-  "max_s": 0
+  "max_s": 0,
+  "name_en": "Duck"
  }
 ]

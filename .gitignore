@@ -5,3 +5,8 @@ __pycache__/
 # Archivos de trabajo locales
 Errores/
 Use AI Image*.jpg
+
+# Compilación
+build/
+dist/
+*.AppImage

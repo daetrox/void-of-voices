@@ -73,13 +73,14 @@ def main():
                     f.write(y[None, :])
                 time.sleep(0.3)
             catalog.append({"id": f"builtin:freesound/{s['fs_id']}", "file": f"freesound/{s['fs_id']}.ogg",
-                            "name": s["name"], "icon": s["icon"], "category": s["category"]})
+                            "name": s["name"], "name_en": s.get("name_en", s["name"]),
+                            "icon": s["icon"], "category": s["category"]})
             print("✓", s["name"])
 
     for f, name, icon in KENNEY:
         if (SOUNDS / "kenney" / f).exists():
             catalog.append({"id": f"builtin:kenney/{f}", "file": f"kenney/{f}",
-                            "name": name, "icon": icon, "category": "Arcade"})
+                            "name": name, "name_en": name.strip("«»"), "icon": icon, "category": "Arcade"})
     (SOUNDS / "sounds.json").write_text(json.dumps(catalog, indent=1, ensure_ascii=False))
 
     lines = ["# Créditos de sonidos", "",

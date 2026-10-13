@@ -1,365 +1,75 @@
 """Interfaz gráfica de Vozcándalo (PySide6)."""
 
 import json
-import math
-import subprocess
-import threading
+import os
+import sys
 import time
 from pathlib import Path
 
-import numpy as np
-
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import (QColor, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPen,
-                           QPalette, QPixmap, QRadialGradient, QShortcut)
+from PySide6.QtCore import QProcess, QSize, Qt, QTimer, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QShortcut
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
-    QAbstractButton, QApplication, QButtonGroup, QCheckBox, QComboBox, QFrame,
-    QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMainWindow, QMenu, QMessageBox,
-    QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSlider, QSpinBox,
-    QStackedWidget, QToolButton, QVBoxLayout, QWidget, QDialog, QDialogButtonBox,
-    QFileDialog, QKeySequenceEdit, QLineEdit,
+    QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
+    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
+    QProgressBar, QPushButton, QSizePolicy, QSpinBox, QStackedWidget, QSystemTrayIcon,
+    QToolButton, QVBoxLayout, QWidget,
 )
 
-from . import APP_ID, APP_NAME, CONFIG_FILE, MIC_NAME, __version__, migrate_legacy, virtualmic
-from .dsp import (ENHANCE_KEYS, ENHANCE_PRESETS, EQ_BANDS, QUICK_VOICES, VOICE_BANK,
-                  VOICE_KEYS, Denoiser, Params, all_voices)
+from . import (APP_ID, APP_NAME, CONFIG_FILE, ICON_PATH, IS_WINDOWS, MIC_NAME, REPO_URL,
+               __version__, devices, migrate_legacy, packs, system)
 from . import soundboard as sb
-from .engine import AudioEngine, _FMT
+from .dsp import (ENHANCE_PRESETS, EQ_BANDS, QUICK_VOICES, VOICE_BANK, VOICE_KEYS, Denoiser,
+                  Params, all_voices)
+from .engine import AudioEngine, Preview
+from .hotkeys import ACTIONS, GlobalHotkeys, pretty, to_portal
+from .i18n import LANGUAGES, T, language, set_language
+from .widgets import (SLIDERS, STYLE, CheckListDialog, LevelMeter, ParamSlider, RoundToggle,
+                      card, dark_palette, glyph_icon, key_capture, scroll_page)
+from .windows import QuickVoicesWindow, SoundPanelWindow
 
-CONFIG = CONFIG_FILE
+DEFAULT_SLOTS = ["Robot", "Demonio", "Femenina", "Ardilla", "Radio"]
+MY_SOUNDS = "Mis sonidos"
 
-ACCENT = "#5ef0a0"
-STYLE = f"""
-* {{ font-family: "Inter", "Noto Sans", sans-serif; }}
-QMainWindow, #root {{ background: #232527; }}
-QScrollArea, #page {{ background: transparent; border: none; }}
-QScrollBar:vertical {{ background: transparent; width: 8px; }}
-QScrollBar::handle:vertical {{ background: #44474b; border-radius: 4px; min-height: 30px; }}
-QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}
-#sidebar {{ background: #1c1d1f; border-right: 1px solid #2c2e31; }}
-#header {{ background: #26282b; border-bottom: 1px solid #2c2e31; }}
-#title {{ font-size: 20px; font-weight: 500; }}
-QToolButton#nav {{
-    background: transparent; border: none; border-left: 3px solid transparent;
-    color: #9a9ea3; font-size: 12px; padding: 8px 4px;
-}}
-QToolButton#nav:hover {{ color: #e6e8ea; }}
-QToolButton#nav:checked {{ color: #e6e8ea; background: #26282b; border-left: 3px solid {ACCENT}; }}
-QComboBox {{
-    background: #1c1d1f; border: 1px solid #3a3d41; border-radius: 6px;
-    padding: 4px 10px; min-width: 240px;
-}}
-QComboBox QAbstractItemView {{ background: #1c1d1f; selection-background-color: #2f5e46; }}
-#card {{ background: #2c2e31; border-radius: 10px; }}
-#cardTitle {{ font-size: 15px; font-weight: 600; }}
-#section {{ font-size: 15px; font-weight: 600; }}
-#category {{ font-size: 13px; font-weight: 600; color: {ACCENT}; padding-top: 8px; }}
-#muted {{ color: #8a8e93; font-size: 12px; }}
-#value {{ color: #c8cbcf; }}
-QSlider::groove:horizontal {{ height: 4px; background: #44474b; border-radius: 2px; }}
-QSlider::sub-page:horizontal {{ background: {ACCENT}; border-radius: 2px; }}
-QSlider::handle:horizontal {{
-    background: #d9dcdf; width: 16px; height: 16px; margin: -6px 0; border-radius: 8px;
-}}
-QSlider::groove:vertical {{ width: 4px; background: #44474b; border-radius: 2px; }}
-QSlider::add-page:vertical {{ background: {ACCENT}; border-radius: 2px; }}
-QSlider::handle:vertical {{
-    background: #d9dcdf; width: 16px; height: 16px; margin: 0 -6px; border-radius: 8px;
-}}
-QToolButton#voice {{
-    background: #2a2c2f; border: 1px solid #3f6e57; border-radius: 10px;
-    padding: 6px; font-size: 13px;
-}}
-QToolButton#voice:hover {{ border-color: {ACCENT}; }}
-QToolButton#voice:checked {{ border: 2px solid {ACCENT}; background: #2d3a33; }}
-QPushButton#apply {{
-    background: {ACCENT}; color: #10241a; border: none; border-radius: 8px;
-    font-size: 15px; font-weight: 600; padding: 10px;
-}}
-QPushButton#apply:hover {{ background: #7cf5b4; }}
-QPushButton#ghost {{
-    background: transparent; border: 1px solid #3a3d41; border-radius: 6px; padding: 6px 14px;
-}}
-QPushButton#ghost:hover, QPushButton#ghost:checked {{ border-color: {ACCENT}; }}
-QPushButton#ghost:checked {{ background: #2d3a33; }}
-QPushButton#link {{ background: transparent; border: none; color: {ACCENT}; text-align: left; }}
-QCheckBox::indicator {{ width: 18px; height: 18px; }}
-QSpinBox {{ background: #1c1d1f; border: 1px solid #3a3d41; border-radius: 6px; padding: 3px 6px; }}
-QLineEdit, QKeySequenceEdit QLineEdit {{
-    background: #1c1d1f; color: #f0f2f4; border: 1px solid #4a4d52; border-radius: 6px;
-    padding: 6px 10px; selection-background-color: #2f5e46;
-}}
-QLineEdit:focus {{ border-color: {ACCENT}; }}
-QMenu {{ background: #2c2e31; border: 1px solid #44474b; padding: 4px; }}
-QMenu::item {{ padding: 6px 18px; border-radius: 4px; }}
-QMenu::item:selected {{ background: #2f5e46; }}
-QMenu::separator {{ height: 1px; background: #44474b; margin: 4px 8px; }}
-QDialog QPushButton, QMessageBox QPushButton {{
-    background: #34373b; border: 1px solid #4a4d52; border-radius: 6px; padding: 6px 16px; min-width: 70px;
-}}
-QDialog QPushButton:hover, QMessageBox QPushButton:hover {{ border-color: {ACCENT}; }}
-QToolTip {{ background: #2c2e31; color: #e6e8ea; border: 1px solid #44474b; padding: 4px; }}
-QProgressBar {{ background: #34373b; border: none; border-radius: 4px; height: 8px; }}
-QProgressBar::chunk {{ background: {ACCENT}; border-radius: 4px; }}
-#status {{ color: #8a8e93; font-size: 12px; padding: 4px 14px; }}
-"""
-
-# key → (etiqueta, mín, máx (en unidades mostradas), pasos por unidad, unidad, factor)
-# valor del parámetro = valor mostrado / factor
-SLIDERS = {
-    "pitch": ("Tono", -12, 12, 2, " st", 1),
-    "formant": ("Formantes (timbre)", -12, 12, 2, " st", 1),
-    "bass": ("Graves", -12, 12, 2, " dB", 1),
-    "treble": ("Agudos", -12, 12, 2, " dB", 1),
-    "gain": ("Ganancia", -12, 12, 2, " dB", 1),
-    "whisper": ("Susurro", 0, 100, 1, " %", 100),
-    "vibrato": ("Vibrato", 0, 100, 1, " %", 100),
-    "tremolo": ("Trémolo", 0, 100, 1, " %", 100),
-    "robot": ("Robot (modulación)", 0, 100, 1, " %", 100),
-    "robot_freq": ("Frecuencia robot", 20, 400, 1, " Hz", 1),
-    "radio": ("Radio / teléfono", 0, 100, 1, " %", 100),
-    "distortion": ("Distorsión", 0, 100, 1, " %", 100),
-    "bitcrush": ("Bitcrush (8-bit)", 0, 100, 1, " %", 100),
-    "underwater": ("Bajo el agua", 0, 100, 1, " %", 100),
-    "chorus": ("Chorus", 0, 100, 1, " %", 100),
-    "phaser": ("Phaser", 0, 100, 1, " %", 100),
-    "echo": ("Eco (mezcla)", 0, 100, 1, " %", 100),
-    "echo_time": ("Eco (tiempo)", 30, 1000, 1, " ms", 1000),
-    "reverb": ("Reverberación", 0, 100, 1, " %", 100),
-    "reverb_size": ("Tamaño de sala", 0, 100, 1, " %", 100),
-    "denoise": ("Supresión de ruido IA", 0, 100, 1, " %", 100),
-    "noise_reduction": ("Puerta de ruido", 0, 10, 1, "", 1),
-    "highpass": ("Filtro paso alto", 0, 200, 1, " Hz", 1),
-    "deesser": ("De-esser (sibilancias)", 0, 100, 1, " %", 100),
-    "compressor": ("Compresor", 0, 100, 1, " %", 100),
-}
-
-
-# ------------------------------------------------------------- widgets
-
-def glyph_icon(text, size=28):
-    """Icono a partir de un carácter/emoji, para no depender de ficheros."""
-    pm = QPixmap(size * 2, size * 2)
-    pm.fill(Qt.transparent)
-    p = QPainter(pm)
-    f = QFont()
-    f.setPixelSize(int(size * 1.5))
-    p.setFont(f)
-    p.setPen(QColor("#d9dcdf"))
-    p.drawText(pm.rect(), Qt.AlignCenter, text)
-    p.end()
-    return QIcon(pm)
-
-
-class RoundToggle(QAbstractButton):
-    """Botón circular con anillo y LED; se usa para Encender y Escuchar."""
-
-    def __init__(self, size, on_text, off_text, on_sub, off_sub, glyph=None):
-        super().__init__()
-        self.setCheckable(True)
-        self.setFixedSize(size, size)
-        self.setCursor(Qt.PointingHandCursor)
-        self.texts = (on_text, off_text, on_sub, off_sub)
-        self.glyph = glyph
-
-    def paintEvent(self, _):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        on = self.isChecked()
-        accent = QColor(ACCENT)
-        s = self.width()
-        k = s / 170  # escala respecto al botón grande
-        r = QRectF(self.rect()).adjusted(12 * k, 12 * k, -12 * k, -12 * k)
-        c = r.center()
-
-        if on:  # halo
-            g = QRadialGradient(c, r.width() / 2 + 12 * k)
-            glow = QColor(accent)
-            glow.setAlpha(90)
-            g.setColorAt(0.75, glow)
-            g.setColorAt(1.0, QColor(0, 0, 0, 0))
-            p.setPen(Qt.NoPen)
-            p.setBrush(g)
-            p.drawEllipse(QRectF(self.rect()))
-
-        body = QLinearGradient(r.topLeft(), r.bottomLeft())
-        body.setColorAt(0, QColor("#3a3c40"))
-        body.setColorAt(1, QColor("#26282b"))
-        p.setBrush(body)
-        p.setPen(QPen(accent if on else QColor("#4a4d52"), max(3.0, 6 * k)))
-        p.drawEllipse(r.adjusted(4 * k, 4 * k, -4 * k, -4 * k))
-
-        on_text, off_text, on_sub, off_sub = self.texts
-        if self.glyph:
-            f = QFont(self.font())
-            f.setPixelSize(int(40 * k))
-            p.setFont(f)
-            p.setPen(QColor("#f0f2f4") if on else QColor("#9a9ea3"))
-            p.drawText(QRectF(r.left(), c.y() - 62 * k, r.width(), 44 * k), Qt.AlignCenter, self.glyph)
-        else:
-            led = QRectF(0, 0, 18 * k, 18 * k)
-            led.moveCenter(c - QPointF(0, 34 * k))
-            p.setPen(Qt.NoPen)
-            p.setBrush(accent if on else QColor("#55595e"))
-            p.drawEllipse(led)
-
-        f = QFont(self.font())
-        f.setPointSizeF(13 * k if not self.glyph else 7.5)
-        f.setWeight(QFont.DemiBold)
-        p.setFont(f)
-        p.setPen(QColor("#f0f2f4") if on else QColor("#9a9ea3"))
-        p.drawText(QRectF(r.left(), c.y() - 14 * k, r.width(), 24 * k), Qt.AlignCenter,
-                   on_text if on else off_text)
-
-        f.setPointSizeF(max(6.5, 8 * k))
-        f.setWeight(QFont.Normal)
-        p.setFont(f)
-        pill = QRectF(0, 0, 66 * k + 8, 18 * k + 2)
-        pill.moveCenter(c + QPointF(0, 24 * k))
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor("#2f5e46") if on else QColor("#34373b"))
-        p.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2)
-        p.setPen(accent if on else QColor("#9a9ea3"))
-        p.drawText(pill, Qt.AlignCenter, on_sub if on else off_sub)
-
-
-class LevelMeter(QWidget):
-    """Dos barras verticales (entrada/salida) con caída suave."""
-
-    def __init__(self):
-        super().__init__()
-        self.setFixedSize(60, 150)
-        self.levels = [0.0, 0.0]
-
-    def set_levels(self, a, b):
-        def db(v):  # -60..0 dBFS → 0..1
-            return max(0.0, min(1.0, (20 * math.log10(v + 1e-9) + 60) / 60))
-        new = [db(a), db(b)]
-        self.levels = [max(n, o - 0.04) for n, o in zip(new, self.levels)]
-        self.update()
-
-    def paintEvent(self, _):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        h = self.height() - 22
-        for i, lv in enumerate(self.levels):
-            x = 12 + i * 22
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor("#34373b"))
-            p.drawRoundedRect(QRectF(x, 0, 12, h), 3, 3)
-            fill = h * lv
-            p.setBrush(QColor(ACCENT) if lv < 0.9 else QColor("#f0c05e"))
-            p.drawRoundedRect(QRectF(x, h - fill, 12, fill), 3, 3)
-        p.setPen(QColor(ACCENT))
-        f = QFont(self.font())
-        f.setPointSize(8)
-        p.setFont(f)
-        p.drawText(QRectF(0, h + 4, self.width(), 16), Qt.AlignCenter, "IN   OUT")
-
-
-class ParamSlider(QWidget):
-    """Fila: etiqueta · slider · valor actual (o columna si es vertical)."""
-    changed = Signal()
-
-    def __init__(self, label, lo, hi, steps=1, unit="", orientation=Qt.Horizontal):
-        super().__init__()
-        self.steps = steps
-        self.unit = unit
-        self.slider = QSlider(orientation)
-        self.slider.setRange(int(lo * steps), int(hi * steps))
-        self.slider.valueChanged.connect(self._on_change)
-        self.slider.setCursor(Qt.PointingHandCursor)
-        self.value_lbl = QLabel(objectName="value")
-
-        if orientation == Qt.Horizontal:
-            lay = QHBoxLayout(self)
-            lay.setContentsMargins(0, 2, 0, 2)
-            name = QLabel(label)
-            name.setFixedWidth(170)
-            lay.addWidget(name)
-            lay.addWidget(self.slider, 1)
-            self.value_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.value_lbl.setFixedWidth(64)
-            lay.addWidget(self.value_lbl)
-        else:
-            lay = QVBoxLayout(self)
-            self.value_lbl.setAlignment(Qt.AlignCenter)
-            lay.addWidget(self.value_lbl)
-            lay.addWidget(self.slider, 1, Qt.AlignHCenter)
-            name = QLabel(label)
-            name.setAlignment(Qt.AlignCenter)
-            lay.addWidget(name)
-        self._on_change(self.slider.value(), emit=False)
-
-    def _on_change(self, v, emit=True):
-        val = v / self.steps
-        txt = f"{val:+g}" if self.slider.minimum() < 0 else f"{val:g}"
-        self.value_lbl.setText(f"{txt}{self.unit}")
-        if emit:
-            self.changed.emit()
-
-    def value(self):
-        return self.slider.value() / self.steps
-
-    def set_value(self, v):
-        self.slider.blockSignals(True)
-        self.slider.setValue(round(v * self.steps))
-        self.slider.blockSignals(False)
-        self._on_change(self.slider.value(), emit=False)
-
-
-def card(title=None, subtitle=None):
-    f = QFrame(objectName="card")
-    lay = QVBoxLayout(f)
-    lay.setContentsMargins(18, 14, 18, 14)
-    if title:
-        lay.addWidget(QLabel(title, objectName="cardTitle"))
-    if subtitle:
-        s = QLabel(subtitle, objectName="muted")
-        s.setWordWrap(True)
-        lay.addWidget(s)
-    return f, lay
-
-
-def scroll_page():
-    """Página con scroll; devuelve (widget_para_el_stack, layout_del_contenido)."""
-    area = QScrollArea()
-    area.setWidgetResizable(True)
-    area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    inner = QWidget(objectName="page")
-    lay = QVBoxLayout(inner)
-    lay.setContentsMargins(28, 20, 28, 20)
-    lay.setSpacing(16)
-    area.setWidget(inner)
-    return area, lay
-
-
-# ------------------------------------------------------------- ventana
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, cfg):
         super().__init__()
         self.setWindowTitle(APP_NAME)
-        self.resize(1040, 680)
+        self.setWindowIcon(QIcon(str(ICON_PATH)))
+        self.resize(1060, 700)
+        self.setAcceptDrops(True)
+        self.cfg = cfg
         self.engine = AudioEngine()
-        self.sliders = []        # (key, ParamSlider); key = ("eq", i) para bandas
-        self.voice_buttons = []  # (nombre, botón) de todas las tarjetas de voz
-        self.custom_voices = {}  # nombre → dict de parámetros de voz
+        self.hotkeys = GlobalHotkeys(self)
+        self.sliders = []          # (key, ParamSlider); key = ("eq", i) para bandas
+        self.voice_buttons = []    # (owner, nombre, botón)
+        self.custom_voices = {}    # nombre → dict de parámetros de voz
+        self.voice_slots = list(DEFAULT_SLOTS)
+        self.current_voice = None
+        self.last_voice = None     # (nombre o None, dict de parámetros de voz)
         self.params = Params()
-        self._custom_shown = set()
-        self.sound_buttons = {}   # id → botón
-        self.sound_cfg = {}       # id → {name, icon, volume, loop, hotkey}
+        self.sound_buttons = {}    # id → [botón, …] (página y panel)
+        self.sound_sections = {}   # owner → [(título, [(nombre, botón)])]
+        self.sound_cfg = {}        # id → {name, icon, volume, loop, hotkey}
         self.user_sounds = []
-        self._shortcuts = []
-        self._previews = {}       # id → proceso pacat (vista previa con el modulador apagado)
+        self.window_state = cfg.get("windows", {})
+        self.hotkey_triggers = {sid: trig for sid, _, trig in ACTIONS}
+        self.hotkey_triggers.update(cfg.get("hotkeys", {}))
+        self._sound_shortcuts = []
+        self._fallback_shortcuts = []
+        self._previews = {}
+        self._toggles = []         # (botón de encendido, botón de silencio) de otras ventanas
         self._msg = None
+        self._quitting = False
+        self.quick = None
+        self.panel = None
 
         root = QWidget(objectName="root")
         self.setCentralWidget(root)
         outer = QHBoxLayout(root)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-
         outer.addWidget(self._build_sidebar())
         right = QVBoxLayout()
         right.setSpacing(0)
@@ -369,27 +79,36 @@ class MainWindow(QMainWindow):
                       self._page_enhance, self._page_eq, self._page_settings):
             self.pages.addWidget(build())
         right.addWidget(self.pages, 1)
-        self.status = QLabel("Apagado", objectName="status")
+        self.status = QLabel(T("Apagado"), objectName="status")
         right.addWidget(self.status)
         outer.addLayout(right, 1)
 
+        self._build_tray()
         self._load_config()
+        self.hotkeys.activated.connect(self._on_hotkey)
+        self.hotkeys.deactivated.connect(self._on_hotkey_release)
+        self.hotkeys.changed.connect(self._on_hotkeys_changed)
+        self.hotkeys.status.connect(self._on_hotkeys_status)
+        self._start_hotkeys()
         self.timer = QTimer(self, interval=33, timeout=self._tick)
         self.timer.start()
+        for key, cls in (("quick_voices", QuickVoicesWindow), ("sound_panel", SoundPanelWindow)):
+            if self.window_state.get(key, {}).get("open"):
+                QTimer.singleShot(200, lambda k=key: self.toggle_window(k))
 
-    # ---------------------------------------------------- construcción
+    # ================================================================ estructura
     def _build_sidebar(self):
         bar = QFrame(objectName="sidebar")
         bar.setFixedWidth(104)
         lay = QVBoxLayout(bar)
-        lay.setContentsMargins(0, 50, 0, 0)
+        lay.setContentsMargins(0, 44, 0, 0)
         lay.setSpacing(2)
         self.nav = QButtonGroup(self)
         items = [("🎙", "Micrófono"), ("🎭", "Voces"), ("🔊", "Sonidos"), ("✨", "Efectos"),
                  ("🎧", "Mejora"), ("🎚", "Ecualizador"), ("⚙", "Ajustes")]
         for i, (glyph, name) in enumerate(items):
             b = QToolButton(objectName="nav")
-            b.setText(name)
+            b.setText(T(name))
             b.setIcon(glyph_icon(glyph))
             b.setIconSize(QSize(24, 24))
             b.setCheckable(True)
@@ -417,12 +136,12 @@ class MainWindow(QMainWindow):
         lay.addWidget(title)
         row = QHBoxLayout()
         row.addStretch()
-        row.addWidget(QLabel("Dispositivo de entrada:"))
+        row.addWidget(QLabel(T("Dispositivo de entrada:")))
         self.device = QComboBox()
         self.device.currentIndexChanged.connect(self._on_device)
         row.addWidget(self.device)
         refresh = QPushButton("⟳", objectName="ghost")
-        refresh.setToolTip("Actualizar dispositivos")
+        refresh.setToolTip(T("Actualizar dispositivos"))
         refresh.clicked.connect(lambda: self._fill_devices())
         row.addWidget(refresh)
         row.addStretch()
@@ -438,42 +157,55 @@ class MainWindow(QMainWindow):
         lay.addWidget(s)
         return s
 
-    def _voice_card(self, name, icon, size=(104, 84)):
-        b = QToolButton(objectName="voice")
-        b.setText(name)
-        b.setIcon(glyph_icon(icon, 30))
-        b.setIconSize(QSize(30, 30))
-        b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-        b.setCheckable(True)
-        b.setMinimumSize(*size)
-        b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    def _pill(self, text, slot, tip=None):
+        b = QPushButton(T(text), objectName="pill")
         b.setCursor(Qt.PointingHandCursor)
-        b.clicked.connect(lambda _=False, n=name: self._apply_voice(n))
-        self.voice_buttons.append((name, b))
+        if tip:
+            b.setToolTip(T(tip))
+        b.clicked.connect(slot)
         return b
 
+    # ------------------------------------------------------------ página: micrófono
     def _page_mic(self):
         page = QWidget()
         grid = QGridLayout(page)
-        grid.setContentsMargins(28, 16, 28, 16)
+        grid.setContentsMargins(28, 14, 28, 14)
         grid.setHorizontalSpacing(28)
+
+        col = QVBoxLayout()
+        if IS_WINDOWS:
+            self.vb_banner = QLabel(objectName="banner")
+            self.vb_banner.setWordWrap(True)
+            self.vb_banner.setOpenExternalLinks(True)
+            self.vb_banner.setText(T("⚠ Para que Discord u otras apps oigan tu voz, instala el driver gratuito "
+                                     "<a href='{}'>VB-Cable</a> y reinicia la app. Luego elige "
+                                     "«CABLE Output» como micrófono en esas apps.").format(devices.VBCABLE_URL))
+            self.vb_banner.setVisible(not devices.virtual_mic_ready())
+            col.addWidget(self.vb_banner)
 
         top = QHBoxLayout()
         self.meter = LevelMeter()
         top.addStretch()
         top.addWidget(self.meter)
-        top.addSpacing(36)
-        self.power = RoundToggle(170, "ENCENDIDO", "APAGADO", "ACTIVO", "ACTIVAR")
-        self.power.setToolTip("Encender o apagar el micrófono virtual")
+        top.addSpacing(30)
+        self.power = RoundToggle(170, T("ENCENDIDO"), T("APAGADO"), T("ACTIVO"), T("ACTIVAR"))
+        self.power.setToolTip(T("Encender o apagar el micrófono virtual"))
         self.power.toggled.connect(self._on_power)
         top.addWidget(self.power)
-        top.addSpacing(16)
-        self.listen = RoundToggle(110, "ESCUCHANDO", "ESCUCHAR", "ON", "OFF", glyph="🎧")
-        self.listen.setToolTip("Escuchar tu voz modificada por los altavoces/auriculares")
+        top.addSpacing(14)
+        side_btns = QVBoxLayout()
+        self.listen = RoundToggle(104, T("ESCUCHANDO"), T("ESCUCHAR"), "ON", "OFF", glyph="🎧")
+        self.listen.setToolTip(T("Escuchar tu voz modificada por los altavoces/auriculares"))
         self.listen.toggled.connect(self._on_monitor)
-        top.addWidget(self.listen, 0, Qt.AlignVCenter)
+        side_btns.addWidget(self.listen)
+        self.mute = RoundToggle(104, T("SILENCIADO"), T("SILENCIAR"), "ON", "OFF", glyph="🔇")
+        self.mute.setToolTip(T("Silenciar tu voz (los sonidos siguen funcionando)"))
+        self.mute.toggled.connect(self.set_muted)
+        side_btns.addWidget(self.mute)
+        top.addLayout(side_btns)
         top.addStretch(2)
-        grid.addLayout(top, 0, 0)
+        col.addLayout(top)
+        grid.addLayout(col, 0, 0)
 
         box, lay = card("Ajustes de voz")
         for key in ("pitch", "formant", "bass", "treble", "gain", "denoise"):
@@ -481,93 +213,111 @@ class MainWindow(QMainWindow):
         grid.addWidget(box, 1, 0)
 
         side = QVBoxLayout()
-        side.addWidget(QLabel("Voces rápidas", objectName="section"))
-        pg = QGridLayout()
-        pg.setSpacing(10)
-        bank = all_voices()
-        for i, name in enumerate(QUICK_VOICES):
-            pg.addWidget(self._voice_card(name, bank[name][0], (110, 84)), i // 2, i % 2)
-        side.addLayout(pg)
-        more = QPushButton("Ver todas las voces →", objectName="link")
+        side.addWidget(QLabel(T("Voces rápidas"), objectName="section"))
+        self.quick_grid = QGridLayout()
+        self.quick_grid.setSpacing(10)
+        side.addLayout(self.quick_grid)
+        more = QPushButton(T("Ver todas las voces →"), objectName="link")
         more.setCursor(Qt.PointingHandCursor)
         more.clicked.connect(lambda: self._goto(1))
         side.addWidget(more)
+        side.addSpacing(6)
+        side.addWidget(self._pill("⇄ Normal / última voz", self.toggle_voice,
+                                  "Alterna entre tu voz normal y la última voz usada"))
+        side.addWidget(self._pill("🪟 Selector de voces", lambda: self.toggle_window("quick_voices")))
+        side.addWidget(self._pill("🪟 Panel de sonidos", lambda: self.toggle_window("sound_panel")))
         side.addStretch()
-        save = QPushButton("GUARDAR", objectName="apply")
-        save.setToolTip("Guardar los ajustes actuales como predeterminados")
+        save = QPushButton(T("GUARDAR"), objectName="apply")
+        save.setToolTip(T("Guardar los ajustes actuales como predeterminados"))
         save.setCursor(Qt.PointingHandCursor)
-        save.clicked.connect(self._save_config)
+        save.clicked.connect(lambda: self._save_config(announce=True))
         side.addWidget(save)
         grid.addLayout(side, 0, 1, 2, 1)
         grid.setColumnStretch(0, 3)
         grid.setColumnStretch(1, 1)
         return page
 
+    def _rebuild_quick_cards(self):
+        self.forget_voice_buttons("mic")
+        while self.quick_grid.count():
+            w = self.quick_grid.takeAt(0).widget()
+            if w:
+                w.deleteLater()
+        for i, name in enumerate(QUICK_VOICES):
+            self.quick_grid.addWidget(self.voice_card(name, owner="mic", size=(110, 80)), i // 2, i % 2)
+
+    # ------------------------------------------------------------ página: voces
     def _page_voices(self):
         area, lay = scroll_page()
         head = QHBoxLayout()
-        head.addWidget(QLabel("Banco de voces", objectName="section"))
+        head.addWidget(QLabel(T("Banco de voces"), objectName="section"))
         head.addStretch()
-        add = QPushButton("＋ Guardar voz actual", objectName="ghost")
-        add.clicked.connect(self._save_custom_voice)
-        head.addWidget(add)
+        for text, slot in (("＋ Guardar voz actual", self._save_custom_voice),
+                           ("⬇ Importar…", self._import_voices_dialog),
+                           ("⬆ Exportar…", self._export_voices)):
+            b = QPushButton(T(text), objectName="ghost")
+            b.clicked.connect(slot)
+            head.addWidget(b)
         lay.addLayout(head)
-        hint = QLabel("Las voces cambian tono, timbre y efectos. La mejora de audio "
-                      "(ruido, compresor…) y el ecualizador se mantienen.", objectName="muted")
+        hint = QLabel(T("Las voces cambian tono, timbre y efectos. La mejora de audio "
+                        "(ruido, compresor…) y el ecualizador se mantienen."), objectName="muted")
         hint.setWordWrap(True)
         lay.addWidget(hint)
 
         for cat, voices in VOICE_BANK.items():
-            lay.addWidget(QLabel(cat, objectName="category"))
+            lay.addWidget(QLabel(T(cat), objectName="category"))
             g = QGridLayout()
             g.setSpacing(10)
-            for i, (name, (icon, _)) in enumerate(voices.items()):
-                g.addWidget(self._voice_card(name, icon), i // 5, i % 5)
+            for i, name in enumerate(voices):
+                g.addWidget(self.voice_card(name, owner="bank"), i // 5, i % 5)
             lay.addLayout(g)
 
-        lay.addWidget(QLabel("Mis voces", objectName="category"))
+        lay.addWidget(QLabel(T("Mis voces"), objectName="category"))
         self.custom_grid = QGridLayout()
         self.custom_grid.setSpacing(10)
         lay.addLayout(self.custom_grid)
-        self.custom_empty = QLabel("Ajusta los controles a tu gusto y pulsa «＋ Guardar voz actual». "
-                                   "Clic derecho sobre una voz propia para borrarla.",
+        self.custom_empty = QLabel(T("Ajusta los controles a tu gusto y pulsa «＋ Guardar voz actual». "
+                                     "Clic derecho sobre una voz propia para renombrarla o borrarla."),
                                    objectName="muted")
         self.custom_empty.setWordWrap(True)
         lay.addWidget(self.custom_empty)
         lay.addStretch()
         return area
 
+    # ------------------------------------------------------------ página: sonidos
     def _page_sounds(self):
         area, lay = scroll_page()
-        area.setAcceptDrops(True)
-        area.dragEnterEvent = lambda ev: ev.acceptProposedAction() if ev.mimeData().hasUrls() else None
-        area.dragMoveEvent = area.dragEnterEvent
-        area.dropEvent = lambda ev: self._import_sounds([u.toLocalFile() for u in ev.mimeData().urls()])
-
         box, c = card("Soundboard",
-                      f"Los sonidos se mezclan con tu voz en {MIC_NAME}. Clic para reproducir "
-                      "(otro clic lo detiene). Clic derecho: renombrar, icono, volumen, bucle, atajo. "
-                      "Arrastra aquí tus archivos de audio para añadirlos.")
+                      T("Los sonidos se mezclan con tu voz en {}. Clic para reproducir (otro clic lo detiene). "
+                        "Clic derecho: renombrar, icono, volumen, bucle, atajo. Arrastra aquí tus archivos de "
+                        "audio o paquetes .vzpack.").format(MIC_NAME))
         row = QHBoxLayout()
-        add = QPushButton("＋ Añadir sonidos…", objectName="ghost")
-        add.clicked.connect(self._pick_sounds)
-        row.addWidget(add)
-        stop = QPushButton("⏹ Detener todo", objectName="ghost")
-        stop.clicked.connect(self._stop_sounds)
+        for text, slot in (("＋ Añadir sonidos…", self._pick_sounds),
+                           ("📦 Importar paquete…", self._import_pack_dialog),
+                           ("📦 Exportar paquete…", self._export_pack),
+                           ("🪟 Panel", lambda: self.toggle_window("sound_panel"))):
+            b = QPushButton(T(text), objectName="ghost")
+            b.clicked.connect(slot)
+            row.addWidget(b)
+        row.addStretch()
+        c.addLayout(row)
+        row = QHBoxLayout()
+        stop = QPushButton(T("⏹ Detener todo"), objectName="ghost")
+        stop.clicked.connect(self.stop_sounds)
         row.addWidget(stop)
         self.sound_filter = QLineEdit()
-        self.sound_filter.setPlaceholderText("Buscar sonido…")
+        self.sound_filter.setPlaceholderText(T("Buscar sonido…"))
         self.sound_filter.setClearButtonEnabled(True)
-        self.sound_filter.textChanged.connect(self._filter_sounds)
+        self.sound_filter.textChanged.connect(lambda t: self.filter_sounds("page", t))
         row.addWidget(self.sound_filter, 1)
         c.addLayout(row)
         self.sfx_volume = ParamSlider("Volumen de sonidos", 0, 150, 1, " %")
-        self.sfx_volume.changed.connect(self._on_sfx_settings)
+        self.sfx_volume.changed.connect(lambda: self.set_sfx_volume(self.sfx_volume.value()))
         c.addWidget(self.sfx_volume)
         self.duck = ParamSlider("Bajar mi voz al sonar", 0, 100, 1, " %")
         self.duck.changed.connect(self._on_sfx_settings)
         c.addWidget(self.duck)
-        self.sfx_monitor = QCheckBox("Oír los sonidos en mis auriculares")
+        self.sfx_monitor = QCheckBox(T("Oír los sonidos en mis auriculares"))
         self.sfx_monitor.toggled.connect(self._on_sfx_settings)
         c.addWidget(self.sfx_monitor)
         lay.addWidget(box)
@@ -578,247 +328,7 @@ class MainWindow(QMainWindow):
         lay.addStretch()
         return area
 
-    # ---------------------------------------------------- soundboard
-    def _sound_entries(self):
-        return self.user_sounds + sb.builtin_sounds()
-
-    def _sound_meta(self, entry):
-        m = dict(name=entry["name"], icon=entry["icon"], volume=100, loop=False, hotkey="")
-        m.update(self.sound_cfg.get(entry["id"], {}))
-        return m
-
-    def _set_meta(self, sid, **kw):
-        self.sound_cfg.setdefault(sid, {}).update(kw)
-        self._rebuild_sounds()
-        self._save_config()
-
-    def _rebuild_sounds(self):
-        while self.sounds_box.count():
-            item = self.sounds_box.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-            elif item.layout():
-                lay = item.layout()
-                while lay.count():
-                    w = lay.takeAt(0).widget()
-                    if w:
-                        w.deleteLater()
-                lay.deleteLater()
-        for sc in self._shortcuts:
-            sc.setEnabled(False)
-            sc.deleteLater()
-        self._shortcuts = []
-        self.sound_buttons = {}
-        self._sound_entry = {}
-
-        cats = {}
-        for e in self._sound_entries():
-            cats.setdefault(e["category"], []).append(e)
-        if "Mis sonidos" not in cats:
-            cats = {"Mis sonidos": [], **cats}
-        self._sound_sections = []
-        for cat, entries in cats.items():
-            title = QLabel(cat, objectName="category")
-            self.sounds_box.addWidget(title)
-            g = QGridLayout()
-            g.setSpacing(10)
-            if not entries:
-                hint = QLabel("Aún no has añadido sonidos: usa «＋ Añadir sonidos…» o arrastra "
-                              "archivos (WAV, MP3, OGG, FLAC).", objectName="muted")
-                hint.setWordWrap(True)
-                g.addWidget(hint, 0, 0, 1, 5)
-            buttons = []
-            for i, e in enumerate(entries):
-                m = self._sound_meta(e)
-                label = m["name"] + (f"\n⌨ {m['hotkey']}" if m["hotkey"] else "")
-                b = QToolButton(objectName="voice")
-                b.setText(label)
-                b.setIcon(glyph_icon(m["icon"], 26))
-                b.setIconSize(QSize(26, 26))
-                b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-                b.setCheckable(True)
-                b.setMinimumSize(118, 78)
-                b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                b.setCursor(Qt.PointingHandCursor)
-                tip = f"{m['name']} · volumen {m['volume']} %" + (" · en bucle" if m["loop"] else "")
-                b.setToolTip(tip)
-                b.clicked.connect(lambda _=False, sid=e["id"]: self._play_sound(sid))
-                b.setContextMenuPolicy(Qt.CustomContextMenu)
-                b.customContextMenuRequested.connect(
-                    lambda _pos, sid=e["id"], w=b: self._sound_menu(sid, w))
-                g.addWidget(b, i // 5, i % 5)
-                self.sound_buttons[e["id"]] = b
-                self._sound_entry[e["id"]] = e
-                buttons.append((m["name"].lower(), b))
-                if m["hotkey"]:
-                    sc = QShortcut(QKeySequence(m["hotkey"]), self)
-                    sc.setContext(Qt.ApplicationShortcut)
-                    sc.activated.connect(lambda sid=e["id"]: self._play_sound(sid))
-                    self._shortcuts.append(sc)
-            for col in range(5):
-                g.setColumnStretch(col, 1)
-            self.sounds_box.addLayout(g)
-            self._sound_sections.append((title, buttons))
-        self._filter_sounds(self.sound_filter.text())
-
-    def _filter_sounds(self, text):
-        text = text.strip().lower()
-        for title, buttons in getattr(self, "_sound_sections", []):
-            visible = 0
-            for name, b in buttons:
-                show = not text or text in name
-                b.setVisible(show)
-                visible += show
-            title.setVisible(not text or visible > 0)
-
-    def _on_sfx_settings(self):
-        sbd = self.engine.soundboard
-        sbd.volume = self.sfx_volume.value() / 100
-        self.engine.duck = self.duck.value() / 100
-        self.engine.sfx_monitor = self.sfx_monitor.isChecked()
-
-    def _play_sound(self, sid):
-        e = self._sound_entry.get(sid)
-        if not e:
-            return
-        m = self._sound_meta(e)
-        gain = m["volume"] / 100
-        try:
-            if self.engine.running:
-                self.engine.soundboard.play(sid, e["path"], gain, m["loop"])
-            else:
-                self._preview(sid, e["path"], gain)
-        except Exception as ex:
-            QMessageBox.warning(self, APP_NAME, f"No se pudo reproducir «{m['name']}»:\n{ex}")
-
-    def _preview(self, sid, path, gain):
-        """Con el modulador apagado, reproduce solo en tus altavoces."""
-        old = self._previews.pop(sid, None)
-        if old and old.poll() is None:
-            old.terminate()
-            return
-        data = self.engine.soundboard.preload(sid, path) * gain * self.engine.soundboard.volume
-        sink = self.monitor_out.currentData() or virtualmic.default_sink()
-        proc = subprocess.Popen(["pacat", "--playback", *_FMT, "-d", sink,
-                                 "--client-name=Vozcandalo", "--stream-name=Vista previa"],
-                                stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        def feed():
-            try:
-                proc.stdin.write(np.clip(data, -1, 1).astype(np.float32).tobytes())
-                proc.stdin.close()
-            except (BrokenPipeError, ValueError):
-                pass
-        threading.Thread(target=feed, daemon=True).start()
-        self._previews[sid] = proc
-        self._flash("Vista previa en tus altavoces — enciende el modulador para enviarlo al micrófono")
-
-    def _preview_ids(self):
-        return {sid for sid, p in self._previews.items() if p.poll() is None}
-
-    def _stop_sounds(self):
-        self.engine.soundboard.stop_all()
-        for p in self._previews.values():
-            if p.poll() is None:
-                p.terminate()
-        self._previews.clear()
-
-    def _sound_menu(self, sid, widget):
-        e = self._sound_entry[sid]
-        m = self._sound_meta(e)
-        menu = QMenu(self)
-        a_name = menu.addAction("Renombrar…")
-        a_icon = menu.addAction("Cambiar icono…")
-        a_vol = menu.addAction(f"Volumen… ({m['volume']} %)")
-        a_loop = menu.addAction("Repetir en bucle")
-        a_loop.setCheckable(True)
-        a_loop.setChecked(m["loop"])
-        a_key = menu.addAction("Asignar atajo de teclado…")
-        a_nokey = menu.addAction("Quitar atajo") if m["hotkey"] else None
-        a_reset = None if not self.sound_cfg.get(sid) else menu.addAction("Restablecer")
-        a_del = None
-        if not e.get("builtin"):
-            menu.addSeparator()
-            a_del = menu.addAction("Eliminar sonido")
-        act = menu.exec(widget.mapToGlobal(widget.rect().center()))
-        if act is None:
-            return
-        if act is a_name:
-            name, ok = QInputDialog.getText(self, "Renombrar", "Nombre:", text=m["name"])
-            if ok and name.strip():
-                self._set_meta(sid, name=name.strip()[:40])
-        elif act is a_icon:
-            icon, ok = QInputDialog.getText(self, "Icono", "Emoji o carácter:", text=m["icon"])
-            if ok and icon.strip():
-                self._set_meta(sid, icon=icon.strip()[:2])
-        elif act is a_vol:
-            v, ok = QInputDialog.getInt(self, "Volumen", "Volumen del sonido (%):", m["volume"], 0, 300, 5)
-            if ok:
-                self._set_meta(sid, volume=v)
-        elif act is a_loop:
-            self._set_meta(sid, loop=a_loop.isChecked())
-        elif act is a_key:
-            key = self._ask_shortcut(m["name"])
-            if key:
-                for other, cfg in self.sound_cfg.items():  # un atajo, un sonido
-                    if cfg.get("hotkey") == key:
-                        cfg["hotkey"] = ""
-                self._set_meta(sid, hotkey=key)
-        elif act is a_nokey:
-            self._set_meta(sid, hotkey="")
-        elif act is a_reset:
-            self.sound_cfg.pop(sid, None)
-            self._rebuild_sounds()
-            self._save_config()
-        elif act is a_del:
-            self.engine.soundboard.forget(sid)
-            sb.delete_user_file(e)
-            self.user_sounds = [u for u in self.user_sounds if u["id"] != sid]
-            self.sound_cfg.pop(sid, None)
-            self._rebuild_sounds()
-            self._save_config()
-
-    def _ask_shortcut(self, name):
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Atajo de teclado")
-        v = QVBoxLayout(dlg)
-        v.addWidget(QLabel(f"Pulsa la combinación para «{name}»\n(funciona con la ventana activa):"))
-        edit = QKeySequenceEdit()
-        edit.setMaximumSequenceLength(1)
-        v.addWidget(edit)
-        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        bb.accepted.connect(dlg.accept)
-        bb.rejected.connect(dlg.reject)
-        v.addWidget(bb)
-        edit.setFocus()
-        if dlg.exec() == QDialog.Accepted:
-            return edit.keySequence().toString()
-        return ""
-
-    def _pick_sounds(self):
-        exts = " ".join(f"*{x}" for x in sb.IMPORT_EXTS)
-        files, _ = QFileDialog.getOpenFileNames(self, "Añadir sonidos", str(Path.home()),
-                                                f"Audio ({exts})")
-        self._import_sounds(files)
-
-    def _import_sounds(self, files):
-        added, errors = 0, []
-        for f in files:
-            if not f or Path(f).suffix.lower() not in sb.IMPORT_EXTS:
-                if f:
-                    errors.append(f"{Path(f).name}: formato no soportado")
-                continue
-            try:
-                self.user_sounds.append(sb.import_file(f))
-                added += 1
-            except Exception as ex:
-                errors.append(f"{Path(f).name}: {ex}")
-        if added:
-            self._rebuild_sounds()
-            self._save_config()
-            self._flash(f"{added} sonido(s) añadido(s) a «Mis sonidos»")
-        if errors:
-            QMessageBox.warning(self, APP_NAME, "No se pudieron añadir:\n" + "\n".join(errors))
-
+    # ------------------------------------------------------------ página: efectos
     def _page_effects(self):
         area, lay = scroll_page()
         cols = QHBoxLayout()
@@ -844,19 +354,19 @@ class MainWindow(QMainWindow):
         cols.addLayout(left, 1)
         cols.addLayout(right, 1)
         lay.addLayout(cols)
-        reset = QPushButton("Quitar todos los efectos", objectName="ghost")
-        reset.clicked.connect(lambda: self._apply_voice("Natural"))
+        reset = QPushButton(T("Quitar todos los efectos"), objectName="ghost")
+        reset.clicked.connect(lambda: self.apply_voice("Natural"))
         lay.addWidget(reset, 0, Qt.AlignRight)
         return area
 
+    # ------------------------------------------------------------ página: mejora
     def _page_enhance(self):
         area, lay = scroll_page()
-        box, c = card("Perfiles de mejora",
-                      "Limpian y equilibran tu micrófono antes de aplicar la voz.")
+        box, c = card("Perfiles de mejora", "Limpian y equilibran tu micrófono antes de aplicar la voz.")
         row = QHBoxLayout()
         self.enhance_group = QButtonGroup(self)
         for name in ENHANCE_PRESETS:
-            b = QPushButton(name, objectName="ghost")
+            b = QPushButton(T(name), objectName="ghost")
             b.setCheckable(True)
             b.clicked.connect(lambda _=False, n=name: self._apply_enhance(n))
             self.enhance_group.addButton(b)
@@ -869,9 +379,9 @@ class MainWindow(QMainWindow):
         s = self._add_slider(c, "denoise")
         if not Denoiser.available:
             s.setEnabled(False)
-            s.setToolTip("Instala pyrnnoise para activar la supresión de ruido IA")
+            s.setToolTip(T("Instala pyrnnoise para activar la supresión de ruido IA"))
         vad = QHBoxLayout()
-        vad.addWidget(QLabel("Voz detectada (IA):", objectName="muted"))
+        vad.addWidget(QLabel(T("Voz detectada (IA):"), objectName="muted"))
         self.vad = QProgressBar()
         self.vad.setRange(0, 100)
         self.vad.setTextVisible(False)
@@ -885,13 +395,14 @@ class MainWindow(QMainWindow):
         box, c = card("Dinámica y claridad")
         self._add_slider(c, "deesser")
         self._add_slider(c, "compressor")
-        self.limiter = QCheckBox("Limitador (evita saturar y picos de volumen)")
+        self.limiter = QCheckBox(T("Limitador (evita saturar y picos de volumen)"))
         self.limiter.toggled.connect(self._on_limiter)
         c.addWidget(self.limiter)
         lay.addWidget(box)
         lay.addStretch()
         return area
 
+    # ------------------------------------------------------------ página: ecualizador
     def _page_eq(self):
         area, lay = scroll_page()
         box, c = card("Ecualizador de 5 bandas")
@@ -905,37 +416,47 @@ class MainWindow(QMainWindow):
             self.sliders.append((s.key, s))
             row.addWidget(s)
         c.addLayout(row)
-        reset = QPushButton("Restablecer", objectName="ghost")
+        reset = QPushButton(T("Restablecer"), objectName="ghost")
         reset.clicked.connect(self._reset_eq)
         c.addWidget(reset, 0, Qt.AlignRight)
         lay.addWidget(box)
         lay.addStretch()
         return area
 
+    # ------------------------------------------------------------ página: ajustes
     def _page_settings(self):
         area, lay = scroll_page()
+
         box, c = card("Audio")
         row = QHBoxLayout()
-        row.addWidget(QLabel("Salida para «Escuchar»:"))
+        row.addWidget(QLabel(T("Salida para «Escuchar»:")))
         self.monitor_out = QComboBox()
         self.monitor_out.currentIndexChanged.connect(self._on_monitor)
         row.addWidget(self.monitor_out)
         row.addStretch()
         c.addLayout(row)
-
         row = QHBoxLayout()
-        row.addWidget(QLabel("Motor de tono:"))
+        row.addWidget(QLabel(T("Micrófono:")))
+        self.ptt_mode = QComboBox()
+        self.ptt_mode.addItem(T("Siempre abierto"), False)
+        self.ptt_mode.addItem(T("Pulsar para hablar (mantén el atajo)"), True)
+        self.ptt_mode.currentIndexChanged.connect(
+            lambda: setattr(self.engine, "ptt_mode", self.ptt_mode.currentData()))
+        row.addWidget(self.ptt_mode)
+        row.addStretch()
+        c.addLayout(row)
+        row = QHBoxLayout()
+        row.addWidget(QLabel(T("Motor de tono:")))
         self.mode = QComboBox()
-        self.mode.addItem("Calidad: conserva formantes (~27 ms)", True)
-        self.mode.addItem("Baja latencia: sin formantes (~5 ms)", False)
+        self.mode.addItem(T("Calidad: conserva formantes (~27 ms)"), True)
+        self.mode.addItem(T("Baja latencia: sin formantes (~5 ms)"), False)
         self.mode.currentIndexChanged.connect(
             lambda: setattr(self.engine.processor, "quality", self.mode.currentData()))
         row.addWidget(self.mode)
         row.addStretch()
         c.addLayout(row)
-
         row = QHBoxLayout()
-        row.addWidget(QLabel("Latencia de E/S (ms):"))
+        row.addWidget(QLabel(T("Latencia de E/S (ms):")))
         self.latency = QSpinBox()
         self.latency.setRange(5, 200)
         self.latency.setValue(20)
@@ -943,21 +464,268 @@ class MainWindow(QMainWindow):
         row.addWidget(self.latency)
         row.addStretch()
         c.addLayout(row)
-
-        self.bypass = QCheckBox("Bypass (pasar la voz sin ningún procesado)")
+        self.bypass = QCheckBox(T("Bypass (pasar la voz sin ningún procesado)"))
         self.bypass.toggled.connect(lambda v: setattr(self.engine, "bypass", v))
         c.addWidget(self.bypass)
-        info = QLabel(
-            "Con el modulador encendido, en Discord, OBS o cualquier otra app elige "
-            f"<b>{MIC_NAME}</b> como micrófono.", objectName="muted")
+        info = QLabel(T("Con el modulador encendido, en Discord, OBS o cualquier otra app elige "
+                        "<b>{}</b> como micrófono.").format(MIC_NAME), objectName="muted")
         info.setWordWrap(True)
-        c.addSpacing(8)
+        c.addSpacing(6)
         c.addWidget(info)
+        lay.addWidget(box)
+
+        box, c = card("Atajos de teclado", "Funcionan aunque estés dentro de un juego o de otra app.")
+        self.hotkey_status = QLabel(objectName="muted")
+        self.hotkey_status.setWordWrap(True)
+        c.addWidget(self.hotkey_status)
+        self.hotkey_grid = QGridLayout()
+        self.hotkey_grid.setHorizontalSpacing(14)
+        self.hotkey_labels = {}
+        self.slot_combos = []
+        for r, (sid, desc, _) in enumerate(ACTIONS):
+            self.hotkey_grid.addWidget(QLabel(T(desc)), r, 0)
+            key = QLabel("—", objectName="key")
+            self.hotkey_labels[sid] = key
+            self.hotkey_grid.addWidget(key, r, 1)
+            if sid.startswith("voice_"):
+                combo = QComboBox()
+                combo.setMinimumWidth(180)
+                combo.currentIndexChanged.connect(lambda _=0, i=int(sid[-1]) - 1: self._on_slot_changed(i))
+                self.slot_combos.append(combo)
+                self.hotkey_grid.addWidget(combo, r, 2)
+            if not system_hotkeys_in_desktop():
+                edit = QPushButton(T("Cambiar…"), objectName="ghost")
+                edit.clicked.connect(lambda _=False, s=sid, d=desc: self._edit_hotkey(s, d))
+                self.hotkey_grid.addWidget(edit, r, 3)
+        self.hotkey_grid.setColumnStretch(4, 1)
+        c.addLayout(self.hotkey_grid)
+        if system_hotkeys_in_desktop():
+            b = QPushButton(T("Cambiar teclas en el sistema…"), objectName="ghost")
+            b.clicked.connect(self.hotkeys.configure)
+            c.addWidget(b, 0, Qt.AlignLeft)
+        lay.addWidget(box)
+
+        box, c = card("Aplicación")
+        row = QHBoxLayout()
+        row.addWidget(QLabel(T("Idioma:")))
+        self.lang = QComboBox()
+        for code, name in LANGUAGES.items():
+            self.lang.addItem(name, code)
+        self.lang.setCurrentIndex(max(0, self.lang.findData(language())))
+        self.lang.currentIndexChanged.connect(self._on_language)
+        row.addWidget(self.lang)
+        row.addStretch()
+        c.addLayout(row)
+        self.tray_close = QCheckBox(T("Al cerrar la ventana, seguir funcionando en la bandeja del sistema"))
+        c.addWidget(self.tray_close)
+        self.autostart = QCheckBox(T("Iniciar con el sistema (minimizado en la bandeja)"))
+        try:
+            self.autostart.setChecked(system.autostart_enabled())
+        except Exception:
+            self.autostart.setEnabled(False)
+        self.autostart.toggled.connect(self._on_autostart)
+        c.addWidget(self.autostart)
+        about = QLabel(f"{APP_NAME} {__version__} · <a href='{REPO_URL}'>{REPO_URL}</a>", objectName="muted")
+        about.setOpenExternalLinks(True)
+        c.addSpacing(6)
+        c.addWidget(about)
         lay.addWidget(box)
         lay.addStretch()
         return area
 
-    # ---------------------------------------------------- parámetros
+    # ================================================================ voces
+    def voice_names(self):
+        return list(all_voices()) + sorted(self.custom_voices)
+
+    def voice_label(self, name):
+        return name if name in self.custom_voices else T(name)
+
+    def _voice_icon(self, name):
+        bank = all_voices()
+        return bank[name][0] if name in bank else "⭐"
+
+    def voice_card(self, name, owner, size=(104, 84), small=False):
+        b = QToolButton(objectName="voiceSmall" if small else "voice")
+        b.setText(self.voice_label(name))
+        b.setToolTip(self.voice_label(name))
+        b.setIcon(glyph_icon(self._voice_icon(name), 22 if small else 30))
+        b.setIconSize(QSize(22, 22) if small else QSize(30, 30))
+        b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        b.setCheckable(True)
+        b.setMinimumSize(*((86, 60) if small else size))
+        b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        b.setCursor(Qt.PointingHandCursor)
+        b.clicked.connect(lambda _=False, n=name: self.apply_voice(n))
+        if name in self.custom_voices:
+            b.setContextMenuPolicy(Qt.CustomContextMenu)
+            b.customContextMenuRequested.connect(lambda _pos, n=name, w=b: self._custom_menu(n, w))
+        self.voice_buttons.append((owner, name, b))
+        return b
+
+    def forget_voice_buttons(self, owner):
+        self.voice_buttons = [v for v in self.voice_buttons if v[0] != owner]
+
+    def mark_current_voice(self):
+        for _, n, b in self.voice_buttons:
+            b.setChecked(n == self.current_voice)
+
+    def _voice_params(self, name):
+        if name in self.custom_voices:
+            return Params.from_dict(self.custom_voices[name])
+        return all_voices()[name][1].copy()
+
+    def _voice_snapshot(self):
+        d = self.params.to_dict()
+        return {k: d[k] for k in VOICE_KEYS}
+
+    def _is_natural(self):
+        nat = Params().to_dict()
+        return all(abs(float(self._voice_snapshot()[k]) - float(nat[k])) < 1e-6 for k in VOICE_KEYS)
+
+    def _set_voice(self, params_dict, name):
+        p = self.params.copy()
+        for k in VOICE_KEYS:
+            setattr(p, k, float(params_dict[k]))
+        self._show_params(p)
+        self._push(p)
+        self.current_voice = name
+        self.mark_current_voice()
+
+    def apply_voice(self, name):
+        if name not in all_voices() and name not in self.custom_voices:
+            return
+        if not self._is_natural():
+            self.last_voice = (self.current_voice, self._voice_snapshot())
+        voice = self._voice_params(name).to_dict()
+        self._set_voice(voice, name)
+        if name != "Natural":
+            self.last_voice = (name, {k: voice[k] for k in VOICE_KEYS})
+        self._flash(T("Voz «{}» aplicada").format(self.voice_label(name)))
+
+    def toggle_voice(self):
+        """Alterna entre la voz normal y la última voz usada."""
+        if self._is_natural():
+            if not self.last_voice:
+                self._flash(T("Aún no has usado ninguna voz"))
+                return
+            name, snap = self.last_voice
+            self._set_voice(snap, name)
+            self._flash(T("Voz «{}»").format(self.voice_label(name) if name else T("personalizada")))
+        else:
+            self.last_voice = (self.current_voice, self._voice_snapshot())
+            self._set_voice(Params().to_dict(), "Natural")
+            self._flash(T("Voz normal"))
+
+    def apply_slot(self, i):
+        name = self.voice_slots[i] if i < len(self.voice_slots) else None
+        if name:
+            self.apply_voice(name)
+
+    # ---------------------------------------------------- voces propias
+    def _rebuild_custom(self):
+        self.forget_voice_buttons("custom")
+        while self.custom_grid.count():
+            w = self.custom_grid.takeAt(0).widget()
+            if w:
+                w.deleteLater()
+        for i, name in enumerate(sorted(self.custom_voices)):
+            self.custom_grid.addWidget(self.voice_card(name, owner="custom"), i // 5, i % 5)
+        self.custom_empty.setVisible(not self.custom_voices)
+        self._fill_slot_combos()
+        if self.quick:
+            self.quick.rebuild()
+        self.mark_current_voice()
+
+    def _unique_voice_name(self, name):
+        base, n, out = name, 2, name
+        while out in self.custom_voices or out in all_voices():
+            out = f"{base} ({n})"
+            n += 1
+        return out
+
+    def _custom_menu(self, name, widget):
+        m = QMenu(self)
+        a_ren = m.addAction(T("Renombrar…"))
+        a_exp = m.addAction(T("Exportar…"))
+        m.addSeparator()
+        a_del = m.addAction(T("Borrar «{}»").format(name))
+        act = m.exec(widget.mapToGlobal(widget.rect().center()))
+        if act is a_del:
+            del self.custom_voices[name]
+            self.voice_slots = [s if s != name else "" for s in self.voice_slots]
+        elif act is a_ren:
+            new, ok = QInputDialog.getText(self, T("Renombrar"), T("Nombre:"), text=name)
+            new = new.strip()[:40]
+            if not ok or not new or new == name:
+                return
+            new = self._unique_voice_name(new)
+            self.custom_voices[new] = self.custom_voices.pop(name)
+            self.voice_slots = [s if s != name else new for s in self.voice_slots]
+            if self.current_voice == name:
+                self.current_voice = new
+        elif act is a_exp:
+            self._export_voices([name])
+            return
+        else:
+            return
+        self._rebuild_custom()
+        self._save_config()
+
+    def _save_custom_voice(self):
+        name, ok = QInputDialog.getText(self, T("Guardar voz"), T("Nombre de la voz:"))
+        name = name.strip()[:40]
+        if not ok or not name:
+            return
+        if name in all_voices():
+            QMessageBox.warning(self, APP_NAME, T("Ya existe una voz del banco con ese nombre."))
+            return
+        self.custom_voices[name] = self._voice_snapshot()
+        self.current_voice = name
+        self._rebuild_custom()
+        self._save_config()
+
+    def _export_voices(self, names=None):
+        if not self.custom_voices:
+            QMessageBox.information(self, APP_NAME, T("Primero guarda alguna voz con «＋ Guardar voz actual»."))
+            return
+        if names is None:
+            dlg = CheckListDialog(self, T("Exportar voces"), T("Elige las voces que quieres compartir:"),
+                                  [(n, n) for n in sorted(self.custom_voices)])
+            if not dlg.exec():
+                return
+            names = dlg.selected()
+        if not names:
+            return
+        default = str(Path.home() / (("mis-voces" if len(names) > 1 else names[0]) + packs.VOICE_EXT))
+        path, _ = QFileDialog.getSaveFileName(self, T("Exportar voces"), default,
+                                              T("Voces de Vozcándalo") + f" (*{packs.VOICE_EXT})")
+        if not path:
+            return
+        if not path.endswith(packs.VOICE_EXT):
+            path += packs.VOICE_EXT
+        packs.export_voices(path, {n: self.custom_voices[n] for n in names})
+        self._flash(T("{} voz/voces exportada(s)").format(len(names)))
+
+    def _import_voices_dialog(self):
+        path, _ = QFileDialog.getOpenFileName(self, T("Importar voces"), str(Path.home()),
+                                              T("Voces de Vozcándalo") + f" (*{packs.VOICE_EXT} *.json)")
+        if path:
+            self._import_voices(path)
+
+    def _import_voices(self, path):
+        try:
+            voices = packs.import_voices(path)
+        except packs.PackError as e:
+            QMessageBox.warning(self, APP_NAME, T("No se pudo importar: {}").format(e))
+            return
+        for name, params in voices.items():
+            self.custom_voices[self._unique_voice_name(name)] = params
+        self._rebuild_custom()
+        self._save_config()
+        self._goto(1)
+        self._flash(T("{} voz/voces importada(s) en «Mis voces»").format(len(voices)))
+
+    # ================================================================ parámetros
     def _show_params(self, p):
         for key, s in self.sliders:
             if isinstance(key, tuple):
@@ -979,35 +747,16 @@ class MainWindow(QMainWindow):
             p.eq[s.key[1]] = s.value()
         else:
             setattr(p, s.key, s.value() / SLIDERS[s.key][5])
-        # Sincroniza los sliders duplicados (p. ej. «denoise» en dos páginas).
-        self._show_params(p)
-        if s.key in VOICE_KEYS:
-            self._mark_voice(None)
+        self._show_params(p)   # sincroniza sliders duplicados
         self._push(p)
+        if s.key in VOICE_KEYS:
+            self.current_voice = None
+            self.mark_current_voice()
 
     def _on_limiter(self, on):
         p = self.params.copy()
         p.limiter = 1.0 if on else 0.0
         self._push(p)
-
-    def _mark_voice(self, name):
-        for n, b in self.voice_buttons:
-            b.setChecked(n == name)
-
-    def _voice_params(self, name):
-        if name in self.custom_voices:
-            return Params.from_dict(self.custom_voices[name])
-        return all_voices()[name][1].copy()
-
-    def _apply_voice(self, name):
-        voice = self._voice_params(name)
-        p = self.params.copy()
-        for k in VOICE_KEYS:
-            setattr(p, k, getattr(voice, k))
-        self._show_params(p)
-        self._push(p)
-        self._mark_voice(name)
-        self._flash(f"Voz «{name}» aplicada")
 
     def _apply_enhance(self, name):
         p = self.params.copy()
@@ -1015,7 +764,7 @@ class MainWindow(QMainWindow):
             setattr(p, k, float(v))
         self._show_params(p)
         self._push(p)
-        self._flash(f"Perfil de mejora «{name}» aplicado")
+        self._flash(T("Perfil de mejora «{}» aplicado").format(T(name)))
 
     def _reset_eq(self):
         p = self.params.copy()
@@ -1023,55 +772,437 @@ class MainWindow(QMainWindow):
         self._show_params(p)
         self._push(p)
 
-    # ---------------------------------------------------- voces propias
-    def _rebuild_custom(self):
-        self.voice_buttons = [(n, b) for n, b in self.voice_buttons if n not in self._custom_shown]
-        while self.custom_grid.count():
-            w = self.custom_grid.takeAt(0).widget()
-            if w:
-                w.deleteLater()
-        for i, name in enumerate(sorted(self.custom_voices)):
-            b = self._voice_card(name, "⭐")
-            b.setContextMenuPolicy(Qt.CustomContextMenu)
-            b.customContextMenuRequested.connect(lambda _pos, n=name, w=b: self._custom_menu(n, w))
-            self.custom_grid.addWidget(b, i // 5, i % 5)
-        self._custom_shown = set(self.custom_voices)
-        self.custom_empty.setVisible(not self.custom_voices)
+    # ================================================================ soundboard
+    def _sound_entries(self):
+        return self.user_sounds + sb.builtin_sounds()
 
-    def _custom_menu(self, name, widget):
-        m = QMenu(self)
-        act = m.addAction(f"Borrar «{name}»")
-        if m.exec(widget.mapToGlobal(widget.rect().center())) is act:
-            del self.custom_voices[name]
-            self._rebuild_custom()
-            self._save_config()
+    def _sound_meta(self, entry):
+        name = entry.get("name_en", entry["name"]) if language() == "en" else entry["name"]
+        m = dict(name=name, icon=entry["icon"], volume=100, loop=False, hotkey="")
+        m.update(self.sound_cfg.get(entry["id"], {}))
+        return m
 
-    def _save_custom_voice(self):
-        name, ok = QInputDialog.getText(self, "Guardar voz", "Nombre de la voz:")
-        name = name.strip()
-        if not ok or not name:
-            return
-        if name in all_voices():
-            QMessageBox.warning(self, APP_NAME, "Ya existe una voz del banco con ese nombre.")
-            return
-        d = self.params.to_dict()
-        self.custom_voices[name] = {k: d[k] for k in VOICE_KEYS}
-        self._rebuild_custom()
-        self._mark_voice(name)
+    def _set_meta(self, sid, **kw):
+        self.sound_cfg.setdefault(sid, {}).update(kw)
+        self._rebuild_sounds()
         self._save_config()
 
-    # ---------------------------------------------------- audio
+    def _rebuild_sounds(self):
+        self._entries = {e["id"]: e for e in self._sound_entries()}
+        self.sound_buttons = {}
+        self.rebuild_sound_view("page")
+        if self.panel:
+            self.rebuild_sound_view("panel")
+        for sc in self._sound_shortcuts:
+            sc.setEnabled(False)
+            sc.deleteLater()
+        self._sound_shortcuts = []
+        for sid, e in self._entries.items():
+            hk = self._sound_meta(e)["hotkey"]
+            if hk:
+                sc = QShortcut(QKeySequence(hk), self)
+                sc.setContext(Qt.ApplicationShortcut)
+                sc.activated.connect(lambda s=sid: self.play_sound(s))
+                self._sound_shortcuts.append(sc)
+
+    def rebuild_sound_view(self, owner):
+        if not hasattr(self, "_entries"):
+            self._entries = {e["id"]: e for e in self._sound_entries()}
+        box = self.sounds_box if owner == "page" else self.panel.box
+        while box.count():
+            item = box.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                lay = item.layout()
+                while lay.count():
+                    w = lay.takeAt(0).widget()
+                    if w:
+                        w.deleteLater()
+                lay.deleteLater()
+        for sid in list(self.sound_buttons):
+            self.sound_buttons[sid] = [(o, b) for o, b in self.sound_buttons[sid] if o != owner]
+        small = owner == "panel"
+        cols = 5
+        cats = {}
+        for e in self._entries.values():
+            cats.setdefault(e["category"], []).append(e)
+        if MY_SOUNDS not in cats and owner == "page":
+            cats = {MY_SOUNDS: [], **cats}
+        sections = []
+        for cat, entries in cats.items():
+            title = QLabel(T(cat), objectName="category")
+            box.addWidget(title)
+            g = QGridLayout()
+            g.setSpacing(8 if small else 10)
+            if not entries:
+                hint = QLabel(T("Aún no has añadido sonidos: usa «＋ Añadir sonidos…» o arrastra "
+                                "archivos (WAV, MP3, OGG, FLAC)."), objectName="muted")
+                hint.setWordWrap(True)
+                g.addWidget(hint, 0, 0, 1, cols)
+            buttons = []
+            for i, e in enumerate(entries):
+                m = self._sound_meta(e)
+                label = m["name"] + (f"\n⌨ {m['hotkey']}" if m["hotkey"] else "")
+                b = QToolButton(objectName="voiceSmall" if small else "voice")
+                b.setText(label)
+                b.setIcon(glyph_icon(m["icon"], 22 if small else 26))
+                b.setIconSize(QSize(22, 22) if small else QSize(26, 26))
+                b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+                b.setCheckable(True)
+                b.setMinimumSize(*((96, 62) if small else (118, 78)))
+                b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                b.setCursor(Qt.PointingHandCursor)
+                tip = T("{} · volumen {} %").format(m["name"], m["volume"]) + (T(" · en bucle") if m["loop"] else "")
+                b.setToolTip(tip)
+                b.clicked.connect(lambda _=False, s=e["id"]: self.play_sound(s))
+                b.setContextMenuPolicy(Qt.CustomContextMenu)
+                b.customContextMenuRequested.connect(lambda _pos, s=e["id"], w=b: self._sound_menu(s, w))
+                g.addWidget(b, i // cols, i % cols)
+                self.sound_buttons.setdefault(e["id"], []).append((owner, b))
+                buttons.append((m["name"].lower(), b))
+            for c in range(cols):
+                g.setColumnStretch(c, 1)
+            box.addLayout(g)
+            sections.append((title, buttons))
+        if small:
+            box.addStretch()
+        self.sound_sections[owner] = sections
+        edit = self.sound_filter if owner == "page" else self.panel.search
+        self.filter_sounds(owner, edit.text())
+        if owner == "panel":
+            self.panel.volume.set_value(self.sfx_volume.value())
+
+    def filter_sounds(self, owner, text):
+        text = text.strip().lower()
+        for title, buttons in self.sound_sections.get(owner, []):
+            visible = 0
+            for name, b in buttons:
+                show = not text or text in name
+                b.setVisible(show)
+                visible += show
+            title.setVisible(not text or visible > 0)
+
+    def set_sfx_volume(self, v):
+        self.engine.soundboard.volume = v / 100
+        for s in (self.sfx_volume, getattr(self.panel, "volume", None)):
+            if s and s.value() != v:
+                s.set_value(v)
+
+    def _on_sfx_settings(self):
+        self.engine.soundboard.volume = self.sfx_volume.value() / 100
+        self.engine.duck = self.duck.value() / 100
+        self.engine.sfx_monitor = self.sfx_monitor.isChecked()
+
+    def play_sound(self, sid):
+        e = self._entries.get(sid)
+        if not e:
+            return
+        m = self._sound_meta(e)
+        gain = m["volume"] / 100
+        try:
+            if self.engine.running:
+                self.engine.soundboard.play(sid, e["path"], gain, m["loop"])
+            else:
+                old = self._previews.pop(sid, None)
+                if old and old.active:
+                    old.stop()
+                    return
+                data = self.engine.soundboard.preload(sid, e["path"]) * gain * self.engine.soundboard.volume
+                sink = self.monitor_out.currentData() or devices.default_output()
+                self._previews[sid] = Preview(data, sink)
+                self._flash(T("Vista previa en tus altavoces — enciende el modulador para enviarlo al micrófono"))
+        except Exception as ex:
+            QMessageBox.warning(self, APP_NAME, T("No se pudo reproducir «{}»:\n{}").format(m["name"], ex))
+
+    def stop_sounds(self):
+        self.engine.soundboard.stop_all()
+        for p in self._previews.values():
+            p.stop()
+        self._previews.clear()
+
+    def _sound_menu(self, sid, widget):
+        e = self._entries[sid]
+        m = self._sound_meta(e)
+        menu = QMenu(self)
+        a_name = menu.addAction(T("Renombrar…"))
+        a_icon = menu.addAction(T("Cambiar icono…"))
+        a_vol = menu.addAction(T("Volumen… ({} %)").format(m["volume"]))
+        a_loop = menu.addAction(T("Repetir en bucle"))
+        a_loop.setCheckable(True)
+        a_loop.setChecked(m["loop"])
+        a_key = menu.addAction(T("Asignar atajo de teclado…"))
+        a_nokey = menu.addAction(T("Quitar atajo")) if m["hotkey"] else None
+        a_reset = menu.addAction(T("Restablecer")) if self.sound_cfg.get(sid) else None
+        a_del = None
+        if not e.get("builtin"):
+            menu.addSeparator()
+            a_del = menu.addAction(T("Eliminar sonido"))
+        act = menu.exec(widget.mapToGlobal(widget.rect().center()))
+        if act is None:
+            return
+        if act is a_name:
+            name, ok = QInputDialog.getText(self, T("Renombrar"), T("Nombre:"), text=m["name"])
+            if ok and name.strip():
+                self._set_meta(sid, name=name.strip()[:40])
+        elif act is a_icon:
+            icon, ok = QInputDialog.getText(self, T("Icono"), T("Emoji o carácter:"), text=m["icon"])
+            if ok and icon.strip():
+                self._set_meta(sid, icon=icon.strip()[:2])
+        elif act is a_vol:
+            v, ok = QInputDialog.getInt(self, T("Volumen"), T("Volumen del sonido (%):"), m["volume"], 0, 300, 5)
+            if ok:
+                self._set_meta(sid, volume=v)
+        elif act is a_loop:
+            self._set_meta(sid, loop=a_loop.isChecked())
+        elif act is a_key:
+            key = key_capture(self, T("Atajo de teclado"),
+                              T("Pulsa la combinación para «{}»\n(funciona con la ventana activa):").format(m["name"]))
+            if key:
+                for cfg in self.sound_cfg.values():  # un atajo, un sonido
+                    if cfg.get("hotkey") == key:
+                        cfg["hotkey"] = ""
+                self._set_meta(sid, hotkey=key)
+        elif act is a_nokey:
+            self._set_meta(sid, hotkey="")
+        elif act is a_reset:
+            self.sound_cfg.pop(sid, None)
+            self._rebuild_sounds()
+            self._save_config()
+        elif act is a_del:
+            self.engine.soundboard.forget(sid)
+            sb.delete_user_file(e)
+            self.user_sounds = [u for u in self.user_sounds if u["id"] != sid]
+            self.sound_cfg.pop(sid, None)
+            self._rebuild_sounds()
+            self._save_config()
+
+    def _pick_sounds(self):
+        exts = " ".join(f"*{x}" for x in sb.IMPORT_EXTS)
+        files, _ = QFileDialog.getOpenFileNames(self, T("Añadir sonidos"), str(Path.home()), f"Audio ({exts})")
+        self._import_sounds(files)
+
+    def _import_sounds(self, files):
+        added, errors = 0, []
+        for f in files:
+            if not f or Path(f).suffix.lower() not in sb.IMPORT_EXTS:
+                if f:
+                    errors.append(T("{}: formato no soportado").format(Path(f).name))
+                continue
+            try:
+                entry = sb.import_file(f)
+                entry["category"] = MY_SOUNDS
+                self.user_sounds.append(entry)
+                added += 1
+            except Exception as ex:
+                errors.append(f"{Path(f).name}: {ex}")
+        if added:
+            self._rebuild_sounds()
+            self._save_config()
+            self._flash(T("{} sonido(s) añadido(s) a «Mis sonidos»").format(added))
+        if errors:
+            QMessageBox.warning(self, APP_NAME, T("No se pudieron añadir:") + "\n" + "\n".join(errors))
+
+    def _export_pack(self):
+        entries = list(self._entries.values())
+        items = [(e["id"], f"{self._sound_meta(e)['icon']}  {self._sound_meta(e)['name']}  ·  {T(e['category'])}")
+                 for e in entries]
+        mine = {e["id"] for e in entries if not e.get("builtin")}
+        dlg = CheckListDialog(self, T("Exportar paquete de sonidos"),
+                              T("Elige los sonidos del paquete (se guardan con su nombre, icono, volumen y bucle):"),
+                              items, checked=mine or None)
+        if not dlg.exec():
+            return
+        ids = dlg.selected()
+        if not ids:
+            return
+        name, ok = QInputDialog.getText(self, T("Exportar paquete de sonidos"), T("Nombre del paquete:"),
+                                        text=T("Mis sonidos"))
+        if not ok or not name.strip():
+            return
+        path, _ = QFileDialog.getSaveFileName(self, T("Exportar paquete de sonidos"),
+                                              str(Path.home() / (name.strip() + packs.PACK_EXT)),
+                                              T("Paquete de sonidos") + f" (*{packs.PACK_EXT})")
+        if not path:
+            return
+        if not path.endswith(packs.PACK_EXT):
+            path += packs.PACK_EXT
+        sounds = []
+        for sid in ids:
+            e = self._entries[sid]
+            m = self._sound_meta(e)
+            sounds.append(dict(path=e["path"], name=m["name"], icon=m["icon"], volume=m["volume"], loop=m["loop"]))
+        try:
+            packs.export_sound_pack(path, name.strip(), sounds)
+        except OSError as ex:
+            QMessageBox.warning(self, APP_NAME, str(ex))
+            return
+        self._flash(T("Paquete exportado con {} sonido(s)").format(len(sounds)))
+
+    def _import_pack_dialog(self):
+        path, _ = QFileDialog.getOpenFileName(self, T("Importar paquete de sonidos"), str(Path.home()),
+                                              T("Paquete de sonidos") + f" (*{packs.PACK_EXT} *.zip)")
+        if path:
+            self._import_pack(path)
+
+    def _import_pack(self, path):
+        try:
+            name, entries, metas, errors = packs.import_sound_pack(path)
+        except packs.PackError as e:
+            QMessageBox.warning(self, APP_NAME, T("No se pudo importar: {}").format(e))
+            return
+        self.user_sounds.extend(entries)
+        self.sound_cfg.update(metas)
+        self._rebuild_sounds()
+        self._save_config()
+        self._goto(2)
+        self._flash(T("Paquete «{}» importado: {} sonido(s)").format(name, len(entries)))
+        if errors:
+            QMessageBox.warning(self, APP_NAME, T("No se pudieron añadir:") + "\n" + "\n".join(errors))
+
+    # arrastrar y soltar en cualquier parte de la ventana
+    def dragEnterEvent(self, ev):
+        if ev.mimeData().hasUrls():
+            ev.acceptProposedAction()
+
+    def dropEvent(self, ev):
+        files = [u.toLocalFile() for u in ev.mimeData().urls() if u.isLocalFile()]
+        audio = []
+        for f in files:
+            ext = Path(f).suffix.lower()
+            if ext == packs.PACK_EXT:
+                self._import_pack(f)
+            elif ext == packs.VOICE_EXT:
+                self._import_voices(f)
+            else:
+                audio.append(f)
+        if audio:
+            self._import_sounds(audio)
+
+    # ================================================================ ventanas extra
+    def toggle_window(self, key):
+        if key == "quick_voices":
+            if not self.quick:
+                self.quick = QuickVoicesWindow(self)
+            self.quick.toggle()
+        else:
+            if not self.panel:
+                self.panel = SoundPanelWindow(self)
+                self.rebuild_sound_view("panel")
+            self.panel.toggle()
+
+    def register_toggles(self, power_btn, mute_btn):
+        self._toggles.append((power_btn, mute_btn))
+
+    # ================================================================ atajos
+    def _start_hotkeys(self):
+        self.hotkey_status.setText(T("Conectando con el sistema…"))
+        if not self.hotkeys.start(self.hotkey_triggers):
+            self._enable_fallback_shortcuts(T("Atajos globales no disponibles en este sistema."))
+
+    def _on_hotkeys_changed(self, triggers):
+        for sid, lbl in self.hotkey_labels.items():
+            lbl.setText(triggers.get(sid) or "—")
+        if self.hotkeys.backend == "portal":
+            self.hotkey_status.setText(T("Atajos globales activos. Puedes cambiar las teclas en la "
+                                         "configuración del sistema."))
+        elif self.hotkeys.backend == "windows":
+            self.hotkey_status.setText(T("Atajos globales activos."))
+        if self.quick:
+            self.quick.rebuild()
+
+    def _on_hotkeys_status(self, msg):
+        if msg and not self.hotkeys.backend:
+            self._enable_fallback_shortcuts(msg)
+        elif msg:
+            self.hotkey_status.setText(msg)
+
+    def _enable_fallback_shortcuts(self, reason):
+        """Si no hay atajos globales, los mismos atajos funcionan con la app activa."""
+        for sc in self._fallback_shortcuts:
+            sc.setEnabled(False)
+            sc.deleteLater()
+        self._fallback_shortcuts = []
+        shown = {}
+        for sid, trig in self.hotkey_triggers.items():
+            if not trig:
+                continue
+            seq = pretty(trig).replace("Espacio", "Space")
+            sc = QShortcut(QKeySequence(seq), self)
+            sc.setContext(Qt.ApplicationShortcut)
+            sc.activated.connect(lambda s=sid: self._on_hotkey(s))
+            self._fallback_shortcuts.append(sc)
+            shown[sid] = pretty(trig)
+        for sid, lbl in self.hotkey_labels.items():
+            lbl.setText(shown.get(sid, "—"))
+        self.hotkey_status.setText(reason + " " + T("Los atajos funcionarán solo con la ventana de la app activa."))
+
+    def _edit_hotkey(self, sid, desc):
+        seq = key_capture(self, T("Atajo de teclado"), T("Pulsa la combinación para «{}»:").format(T(desc)))
+        if not seq:
+            return
+        self.hotkey_triggers[sid] = to_portal(seq)
+        self._save_config()
+        self.hotkeys.stop()
+        self._start_hotkeys()
+
+    def trigger_text(self, sid):
+        lbl = self.hotkey_labels.get(sid)
+        text = lbl.text() if lbl else ""
+        return "" if text == "—" else text
+
+    def _on_hotkey(self, sid):
+        if sid == "toggle_voice":
+            self.toggle_voice()
+        elif sid.startswith("voice_"):
+            self.apply_slot(int(sid[-1]) - 1)
+        elif sid == "mute":
+            self.set_muted(not self.engine.muted)
+        elif sid == "ptt":
+            self.engine.ptt_down = True
+        elif sid == "power":
+            self.set_power(not self.power.isChecked())
+        elif sid == "stop_sounds":
+            self.stop_sounds()
+        elif sid in ("quick_voices", "sound_panel"):
+            self.toggle_window(sid)
+
+    def _on_hotkey_release(self, sid):
+        if sid == "ptt":
+            self.engine.ptt_down = False
+
+    def _fill_slot_combos(self):
+        names = self.voice_names()
+        for i, combo in enumerate(self.slot_combos):
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem("—", "")
+            for n in names:
+                combo.addItem(self.voice_label(n), n)
+            current = self.voice_slots[i] if i < len(self.voice_slots) else ""
+            combo.setCurrentIndex(max(0, combo.findData(current)))
+            combo.blockSignals(False)
+
+    def _on_slot_changed(self, i):
+        while len(self.voice_slots) < 5:
+            self.voice_slots.append("")
+        self.voice_slots[i] = self.slot_combos[i].currentData() or ""
+        if self.quick:
+            self.quick.rebuild()
+        self._save_config()
+
+    # ================================================================ audio
     def _fill_devices(self, select=None):
         current = select or self.device.currentData()
         self.device.blockSignals(True)
         self.device.clear()
         try:
-            default = virtualmic.default_source()
-            for name, desc in virtualmic.list_sources():
+            default = devices.default_input()
+            for name, desc in devices.list_inputs():
                 self.device.addItem(desc, name)
-            sinks = virtualmic.list_sinks()
+            sinks = devices.list_outputs()
         except Exception as e:
-            self._flash(f"Error leyendo dispositivos: {e}", 8)
+            self._flash(T("Error leyendo dispositivos: {}").format(e), 8)
             sinks, default = [], None
         idx = self.device.findData(current or default)
         self.device.setCurrentIndex(max(idx, 0))
@@ -1081,11 +1212,13 @@ class MainWindow(QMainWindow):
         cur_sink = self.monitor_out.currentData()
         self.monitor_out.blockSignals(True)
         self.monitor_out.clear()
-        self.monitor_out.addItem("Predeterminada del sistema", None)
+        self.monitor_out.addItem(T("Predeterminada del sistema"), None)
         for name, desc in sinks:
             self.monitor_out.addItem(desc, name)
         self.monitor_out.setCurrentIndex(max(self.monitor_out.findData(cur_sink), 0))
         self.monitor_out.blockSignals(False)
+        if IS_WINDOWS and hasattr(self, "vb_banner"):
+            self.vb_banner.setVisible(not devices.virtual_mic_ready())
 
     def _on_device(self):
         self.engine.source = self.device.currentData()
@@ -1099,6 +1232,10 @@ class MainWindow(QMainWindow):
         self.engine.latency_ms = v
         self.engine.restart()
 
+    def set_power(self, on):
+        if self.power.isChecked() != on:
+            self.power.setChecked(on)   # dispara _on_power
+
     def _on_power(self, on):
         try:
             if on:
@@ -1109,7 +1246,17 @@ class MainWindow(QMainWindow):
             self.power.blockSignals(True)
             self.power.setChecked(False)
             self.power.blockSignals(False)
-            QMessageBox.critical(self, APP_NAME, f"No se pudo iniciar el audio:\n{e}")
+            QMessageBox.critical(self, APP_NAME, T("No se pudo iniciar el audio:\n{}").format(e))
+        self._update_tray()
+
+    def set_muted(self, on):
+        self.engine.muted = bool(on)
+        if self.mute.isChecked() != self.engine.muted:
+            self.mute.blockSignals(True)
+            self.mute.setChecked(self.engine.muted)
+            self.mute.blockSignals(False)
+        self._flash(T("Micrófono silenciado") if on else T("Micrófono activo"))
+        self._update_tray()
 
     def _flash(self, msg, secs=3):
         self._msg = (msg, time.monotonic() + secs)
@@ -1119,10 +1266,16 @@ class MainWindow(QMainWindow):
         e = self.engine
         self.meter.set_levels(e.level_in, e.level_out)
         self.vad.setValue(int(e.processor.denoiser.speech_prob * 100) if e.running else 0)
-        playing = e.soundboard.playing_ids() if e.running else self._preview_ids()
-        for sid, b in self.sound_buttons.items():
-            if b.isChecked() != (sid in playing):
-                b.setChecked(sid in playing)
+        playing = e.soundboard.playing_ids() if e.running else {s for s, p in self._previews.items() if p.active}
+        for sid, btns in self.sound_buttons.items():
+            for _, b in btns:
+                if b.isChecked() != (sid in playing):
+                    b.setChecked(sid in playing)
+        for power_btn, mute_btn in self._toggles:
+            if power_btn and power_btn.isChecked() != e.running:
+                power_btn.setChecked(e.running)
+            if mute_btn and mute_btn.isChecked() != e.muted:
+                mute_btn.setChecked(e.muted)
         if e.error:
             self.status.setText(f"⚠ {e.error}")
             if not e.running and self.power.isChecked():
@@ -1130,34 +1283,120 @@ class MainWindow(QMainWindow):
         elif self._msg and time.monotonic() < self._msg[1]:
             self.status.setText(self._msg[0])
         elif e.running:
-            extra = " · escuchando" if e.monitor else ""
-            self.status.setText(f"● En vivo — micrófono virtual «{MIC_NAME}» activo "
-                                f"({self.device.currentText()}){extra}")
+            state = []
+            if e.muted:
+                state.append(T("silenciado"))
+            elif e.ptt_mode and not e.ptt_down:
+                key = self.hotkeys.triggers.get("ptt") or pretty(self.hotkey_triggers.get("ptt", ""))
+                state.append(T("mantén {} para hablar").format(key))
+            if e.monitor:
+                state.append(T("escuchando"))
+            extra = (" · " + " · ".join(state)) if state else ""
+            self.status.setText(T("● En vivo — micrófono virtual «{}» activo").format(MIC_NAME) +
+                                f" ({self.device.currentText()}){extra}")
         else:
-            self.status.setText("Apagado")
+            self.status.setText(T("Apagado"))
 
-    # ---------------------------------------------------- config
-    def _load_config(self):
-        cfg = {}
+    # ================================================================ bandeja
+    def _build_tray(self):
+        self.tray = None
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+        self.tray = QSystemTrayIcon(QIcon(str(ICON_PATH)), self)
+        self.tray.setToolTip(APP_NAME)
+        menu = QMenu()
+        self.tray_power = QAction(T("Encendido"), menu, checkable=True)
+        self.tray_power.triggered.connect(self.set_power)
+        self.tray_mute = QAction(T("Silenciar micrófono"), menu, checkable=True)
+        self.tray_mute.triggered.connect(self.set_muted)
+        menu.addAction(self.tray_power)
+        menu.addAction(self.tray_mute)
+        menu.addSeparator()
+        menu.addAction(T("⇄ Normal / última voz"), self.toggle_voice)
+        self.tray_voices = menu.addMenu(T("Voces rápidas"))
+        self.tray_voices.aboutToShow.connect(self._fill_tray_voices)
+        menu.addSeparator()
+        menu.addAction(T("Selector de voces"), lambda: self.toggle_window("quick_voices"))
+        menu.addAction(T("Panel de sonidos"), lambda: self.toggle_window("sound_panel"))
+        menu.addAction(T("Mostrar ventana principal"), self.show_main)
+        menu.addSeparator()
+        menu.addAction(T("Salir"), self.quit_app)
+        self.tray.setContextMenu(menu)
+        self.tray.activated.connect(lambda r: self.show_main() if r == QSystemTrayIcon.Trigger else None)
+        self.tray.show()
+
+    def _fill_tray_voices(self):
+        self.tray_voices.clear()
+        for i, name in enumerate(self.voice_slots):
+            if name:
+                act = self.tray_voices.addAction(f"{i + 1}. {self.voice_label(name)}",
+                                                 lambda n=name: self.apply_voice(n))
+                act.setCheckable(True)
+                act.setChecked(name == self.current_voice)
+
+    def _update_tray(self):
+        if not self.tray:
+            return
+        self.tray_power.setChecked(self.engine.running)
+        self.tray_mute.setChecked(self.engine.muted)
+        state = T("encendido") if self.engine.running else T("apagado")
+        if self.engine.muted:
+            state += " · " + T("silenciado")
+        self.tray.setToolTip(f"{APP_NAME} — {state}")
+
+    def show_main(self):
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def quit_app(self):
+        self._quitting = True
+        self.close()
+
+    # ================================================================ config
+    def _on_language(self):
+        lang = self.lang.currentData()
+        if lang == language():
+            return
+        self._save_config()
+        r = QMessageBox.question(self, APP_NAME, T("El idioma se aplicará al reiniciar la app. ¿Reiniciar ahora?"))
+        if r == QMessageBox.Yes:
+            cmd = system.launch_command()
+            self.quit_app()
+            QProcess.startDetached(cmd[0], cmd[1:])
+
+    def _on_autostart(self, on):
         try:
-            cfg = json.loads(CONFIG.read_text())
-        except (OSError, ValueError):
-            pass
+            system.set_autostart(on)
+        except Exception as e:
+            QMessageBox.warning(self, APP_NAME, str(e))
+
+    def _load_config(self):
+        cfg = self.cfg
         self._fill_devices(cfg.get("source"))
         self.monitor_out.setCurrentIndex(max(self.monitor_out.findData(cfg.get("monitor_sink")), 0))
         self.listen.setChecked(cfg.get("monitor", False))
         self.mode.setCurrentIndex(0 if cfg.get("quality", True) else 1)
         self.engine.processor.quality = self.mode.currentData()
+        self.ptt_mode.setCurrentIndex(1 if cfg.get("ptt_mode") else 0)
+        self.engine.ptt_mode = self.ptt_mode.currentData()
         self.latency.blockSignals(True)
         self.latency.setValue(cfg.get("latency_ms", 20))
         self.latency.blockSignals(False)
         self.engine.latency_ms = self.latency.value()
+        self.tray_close.setChecked(cfg.get("close_to_tray", True))
         self.custom_voices = cfg.get("custom_voices", {})
-        self._custom_shown = set()
+        slots = cfg.get("voice_slots", DEFAULT_SLOTS)
+        self.voice_slots = (list(slots) + [""] * 5)[:5]
+        last = cfg.get("last_voice")
+        self.last_voice = (last.get("name"), last.get("params")) if isinstance(last, dict) else None
+        self._rebuild_quick_cards()
         self._rebuild_custom()
         p = Params.from_dict(cfg.get("params", {}))
         self._show_params(p)
         self._push(p)
+        self.current_voice = cfg.get("current_voice")
+        self.mark_current_voice()
         self._on_monitor()
         self.sound_cfg = cfg.get("sounds", {})
         self.user_sounds = [u for u in cfg.get("user_sounds", []) if Path(u["path"]).exists()]
@@ -1166,68 +1405,131 @@ class MainWindow(QMainWindow):
         self.sfx_monitor.setChecked(cfg.get("sfx_monitor", True))
         self._on_sfx_settings()
         self._rebuild_sounds()
+        self._update_tray()
 
-    def _save_config(self):
-        CONFIG.parent.mkdir(parents=True, exist_ok=True)
-        CONFIG.write_text(json.dumps({
+    def _save_config(self, announce=False):
+        for w in (self.quick, self.panel):
+            if w and w.isVisible():
+                w.save_state()
+        data = {
+            "language": language(),
             "source": self.device.currentData(),
             "monitor": self.listen.isChecked(),
             "monitor_sink": self.monitor_out.currentData(),
             "quality": self.mode.currentData(),
+            "ptt_mode": bool(self.ptt_mode.currentData()),
             "latency_ms": self.latency.value(),
+            "close_to_tray": self.tray_close.isChecked(),
             "params": self.params.to_dict(),
+            "current_voice": self.current_voice,
+            "last_voice": {"name": self.last_voice[0], "params": self.last_voice[1]} if self.last_voice else None,
             "custom_voices": self.custom_voices,
+            "voice_slots": self.voice_slots,
+            "hotkeys": self.hotkey_triggers,
             "sounds": self.sound_cfg,
-            "user_sounds": [{k: u[k] for k in ("id", "path", "name", "icon", "category")}
-                            for u in self.user_sounds],
+            "user_sounds": [{k: u[k] for k in ("id", "path", "name", "icon", "category")} for u in self.user_sounds],
             "sfx_volume": self.sfx_volume.value(),
             "duck": self.duck.value(),
             "sfx_monitor": self.sfx_monitor.isChecked(),
-        }, indent=2, ensure_ascii=False))
-        self._flash(f"Ajustes guardados en {CONFIG}")
+            "windows": self.window_state,
+        }
+        data["language"] = self.lang.currentData() if hasattr(self, "lang") else language()
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CONFIG_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        if announce:
+            self._flash(T("Ajustes guardados"))
 
     def closeEvent(self, ev):
-        self._stop_sounds()
+        if self.tray and self.tray_close.isChecked() and not self._quitting:
+            ev.ignore()
+            self.hide()
+            self._save_config()
+            if not self.cfg.get("tray_hint_shown"):
+                self.cfg["tray_hint_shown"] = True
+                self.tray.showMessage(APP_NAME, T("Sigo funcionando en la bandeja del sistema. "
+                                                  "Usa «Salir» en su menú para cerrarme del todo."),
+                                      QIcon(str(ICON_PATH)), 5000)
+            return
         self._save_config()
+        for w in (self.quick, self.panel):
+            if w:
+                w.close()
+        self.stop_sounds()
+        self.hotkeys.stop()
         self.engine.stop()
+        if self.tray:
+            self.tray.hide()
         super().closeEvent(ev)
+        QApplication.instance().quit()
 
 
-def dark_palette():
-    """Paleta oscura completa: la usan también los diálogos estándar de Qt
-    (abrir archivo, renombrar, avisos), que no siguen la hoja de estilos."""
-    pal = QPalette()
-    colors = {
-        QPalette.Window: "#232527", QPalette.WindowText: "#e6e8ea",
-        QPalette.Base: "#1c1d1f", QPalette.AlternateBase: "#26282b",
-        QPalette.Text: "#f0f2f4", QPalette.PlaceholderText: "#8a8e93",
-        QPalette.Button: "#34373b", QPalette.ButtonText: "#e6e8ea",
-        QPalette.Highlight: "#2f5e46", QPalette.HighlightedText: "#ffffff",
-        QPalette.ToolTipBase: "#2c2e31", QPalette.ToolTipText: "#e6e8ea",
-        QPalette.Link: ACCENT, QPalette.BrightText: "#ffffff",
-        QPalette.Light: "#4a4d52", QPalette.Midlight: "#3a3d41", QPalette.Mid: "#2c2e31",
-        QPalette.Dark: "#1a1b1d", QPalette.Shadow: "#000000",
-    }
-    for role, c in colors.items():
-        pal.setColor(role, QColor(c))
-    for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
-        pal.setColor(QPalette.Disabled, role, QColor("#6a6e73"))
-    return pal
+def system_hotkeys_in_desktop():
+    """En Linux las teclas se cambian en la configuración del escritorio (portal)."""
+    return not IS_WINDOWS
+
+
+def _load_cfg():
+    try:
+        return json.loads(CONFIG_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def selftest():
+    """Comprobación sin ventana para la compilación automática (CI)."""
+    import numpy as np
+    from .dsp import Processor
+    from .soundboard import builtin_sounds, load_audio
+    p = Processor()
+    params = Params(pitch=5, formant=3, robot=0.5, reverb=0.4, chorus=0.3, denoise=1.0, compressor=0.5)
+    p.set_params(params)
+    x = (np.random.default_rng(0).standard_normal(48000) * 0.1).astype(np.float32)
+    y = np.concatenate([p.process(x[i:i + 256]) for i in range(0, len(x), 256)])
+    sounds = builtin_sounds()
+    data = load_audio(sounds[0]["path"])
+    ok = bool(np.isfinite(y).all()) and Denoiser.available and len(sounds) > 40 and len(data) > 1000
+    print(f"{APP_NAME} {__version__} selftest: rnnoise={Denoiser.available} sonidos={len(sounds)} "
+          f"dsp={'ok' if np.isfinite(y).all() else 'ERROR'} -> {'OK' if ok else 'FALLO'}")
+    return 0 if ok else 1
 
 
 def main():
-    import os
-    import sys
-    # Usa el selector de archivos nativo del escritorio (KDE/GNOME) vía portal.
-    os.environ.setdefault("QT_QPA_PLATFORMTHEME", "xdgdesktopportal")
+    # Selector de archivos nativo del escritorio (KDE/GNOME) vía portal.
+    if "--selftest" in sys.argv:
+        return selftest()
+    if not IS_WINDOWS:
+        os.environ.setdefault("QT_QPA_PLATFORMTHEME", "xdgdesktopportal")
     app = QApplication(sys.argv)
-    migrate_legacy()
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)
     app.setDesktopFileName(APP_ID)
+    app.setWindowIcon(QIcon(str(ICON_PATH)))
+    app.setQuitOnLastWindowClosed(False)
+
+    # Una sola instancia: si ya hay una abierta, se le pide que se muestre.
+    server_name = f"vozcandalo-{os.environ.get('USER') or os.environ.get('USERNAME') or 'user'}"
+    sock = QLocalSocket()
+    sock.connectToServer(server_name)
+    if sock.waitForConnected(300):
+        sock.write(b"show")
+        sock.flush()
+        sock.waitForBytesWritten(300)
+        return 0
+    QLocalServer.removeServer(server_name)
+    server = QLocalServer()
+    server.listen(server_name)
+
+    migrate_legacy()
+    cfg = _load_cfg()
+    set_language(cfg.get("language"))
+    system.install_desktop_entry()
     app.setStyle("Fusion")
     app.setPalette(dark_palette())
     app.setStyleSheet(STYLE)
-    w = MainWindow()
-    w.show()
-    sys.exit(app.exec())
+    w = MainWindow(cfg)
+    server.newConnection.connect(lambda: (server.nextPendingConnection(), w.show_main()))
+    if "--tray" in sys.argv and w.tray:
+        pass  # arranca oculta en la bandeja
+    else:
+        w.show()
+    return app.exec()

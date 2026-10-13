@@ -1,5 +1,8 @@
-PySide6
+PySide6-Essentials>=6.7
 numpy
 scipy
 pedalboard
-pyrnnoise
+jeepney; sys_platform == "linux"
+sounddevice; sys_platform == "win32"
+# pyrnnoise (supresión de ruido IA) se instala aparte, sin sus dependencias pesadas:
+#   pip install --no-deps pyrnnoise

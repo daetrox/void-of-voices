@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f3236"/>
+      <stop offset="1" stop-color="#17181a"/>
+    </linearGradient>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7cf5b4"/>
+      <stop offset="1" stop-color="#36c97f"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+  <!-- ondas -->
+  <path d="M58 92 Q40 128 58 164" fill="none" stroke="#5ef0a0" stroke-width="10" stroke-linecap="round" opacity="0.55"/>
+  <path d="M34 74 Q8 128 34 182" fill="none" stroke="#5ef0a0" stroke-width="10" stroke-linecap="round" opacity="0.3"/>
+  <path d="M198 92 Q216 128 198 164" fill="none" stroke="#5ef0a0" stroke-width="10" stroke-linecap="round" opacity="0.55"/>
+  <path d="M222 74 Q248 128 222 182" fill="none" stroke="#5ef0a0" stroke-width="10" stroke-linecap="round" opacity="0.3"/>
+  <!-- micrófono -->
+  <rect x="96" y="44" width="64" height="112" rx="32" fill="url(#g)"/>
+  <path d="M80 124 Q80 180 128 180 Q176 180 176 124" fill="none" stroke="#5ef0a0" stroke-width="12" stroke-linecap="round"/>
+  <rect x="122" y="180" width="12" height="28" fill="#5ef0a0"/>
+  <rect x="96" y="204" width="64" height="12" rx="6" fill="#5ef0a0"/>
+  <!-- ojos traviesos: el «escándalo» -->
+  <circle cx="116" cy="92" r="9" fill="#17181a"/>
+  <circle cx="140" cy="92" r="9" fill="#17181a"/>
+  <path d="M110 118 Q128 134 146 118" fill="none" stroke="#17181a" stroke-width="7" stroke-linecap="round"/>
+</svg>

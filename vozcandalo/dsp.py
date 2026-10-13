@@ -8,10 +8,36 @@ import numpy as np
 import pedalboard as pb
 from scipy.signal import sosfilt
 
-try:
-    from pyrnnoise import rnnoise as _rnn
-except Exception:  # pragma: no cover - dependencia opcional
-    _rnn = None
+
+
+def _load_rnnoise():
+    """Carga la librería nativa de RNNoise que trae el paquete pyrnnoise sin
+    importarlo (su __init__ arrastra dependencias pesadas que no usamos)."""
+    import importlib.util
+    import sys
+    from pathlib import Path
+    names = {"win32": "rnnoise.dll", "darwin": "librnnoise.dylib"}
+    libname = names.get(sys.platform, "librnnoise.so")
+    candidates = [Path(getattr(sys, "_MEIPASS", "")) / "pyrnnoise" / libname]
+    spec = importlib.util.find_spec("pyrnnoise")
+    if spec and spec.submodule_search_locations:
+        candidates += [Path(d) / libname for d in spec.submodule_search_locations]
+    for path in candidates:
+        if path.is_file():
+            try:
+                lib = ctypes.CDLL(str(path))
+            except OSError:
+                continue
+            lib.rnnoise_create.argtypes = [ctypes.c_void_p]
+            lib.rnnoise_create.restype = ctypes.c_void_p
+            lib.rnnoise_process_frame.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float),
+                                                  ctypes.POINTER(ctypes.c_float)]
+            lib.rnnoise_process_frame.restype = ctypes.c_float
+            return lib
+    return None
+
+
+_RNN = _load_rnnoise()
 
 SAMPLE_RATE = 48000
 
@@ -298,10 +324,10 @@ class SpectralVoice:
 class Denoiser:
     """Supresión de ruido con RNNoise (red neuronal, tramas de 10 ms)."""
 
-    available = _rnn is not None
+    available = _RNN is not None
 
     def __init__(self):
-        self.state = _rnn.create() if self.available else None
+        self.state = _RNN.rnnoise_create(None) if self.available else None
         self.framer = Framed(480)
         self.mix = 1.0
         self.speech_prob = 0.0
@@ -318,7 +344,7 @@ class Denoiser:
     def _frame(self, frame):
         buf = (frame * 32768.0).astype(np.float32)
         ptr = buf.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-        self.speech_prob = float(_rnn.lib.rnnoise_process_frame(self.state, ptr, ptr))
+        self.speech_prob = float(_RNN.rnnoise_process_frame(self.state, ptr, ptr))
         wet = buf / 32768.0
         return frame * (1 - self.mix) + wet * self.mix
 

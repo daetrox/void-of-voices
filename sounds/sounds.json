@@ -3,6 +3,7 @@
   "id": "builtin:freesound/478414",
   "file": "freesound/478414.ogg",
   "name": "Aplausos",
+  "name_en": "Applause",
   "icon": "👏",
   "category": "Reacciones"
  },
@@ -10,6 +11,7 @@
   "id": "builtin:freesound/346689",
   "file": "freesound/346689.ogg",
   "name": "Ovación",
+  "name_en": "Cheering",
   "icon": "🙌",
   "category": "Reacciones"
  },
@@ -17,6 +19,7 @@
   "id": "builtin:freesound/17121",
   "file": "freesound/17121.ogg",
   "name": "Risas del público",
+  "name_en": "Audience laugh",
   "icon": "😂",
   "category": "Reacciones"
  },
@@ -24,6 +27,7 @@
   "id": "builtin:freesound/324893",
   "file": "freesound/324893.ogg",
   "name": "Abucheo",
+  "name_en": "Booing",
   "icon": "👎",
   "category": "Reacciones"
  },
@@ -31,6 +35,7 @@
   "id": "builtin:freesound/124996",
   "file": "freesound/124996.ogg",
   "name": "Aww",
+  "name_en": "Aww",
   "icon": "🥺",
   "category": "Reacciones"
  },
@@ -38,6 +43,7 @@
   "id": "builtin:freesound/264376",
   "file": "freesound/264376.ogg",
   "name": "Sorpresa (ooh)",
+  "name_en": "Gasp (ooh)",
   "icon": "😮",
   "category": "Reacciones"
  },
@@ -45,6 +51,7 @@
   "id": "builtin:freesound/398933",
   "file": "freesound/398933.ogg",
   "name": "Wow",
+  "name_en": "Wow",
   "icon": "🤩",
   "category": "Reacciones"
  },
@@ -52,6 +59,7 @@
   "id": "builtin:freesound/241258",
   "file": "freesound/241258.ogg",
   "name": "Silbido",
+  "name_en": "Wolf whistle",
   "icon": "😏",
   "category": "Reacciones"
  },
@@ -59,6 +67,7 @@
   "id": "builtin:freesound/169826",
   "file": "freesound/169826.ogg",
   "name": "Risa malvada",
+  "name_en": "Evil laugh",
   "icon": "😈",
   "category": "Reacciones"
  },
@@ -66,6 +75,7 @@
   "id": "builtin:freesound/822935",
   "file": "freesound/822935.ogg",
   "name": "Grillos",
+  "name_en": "Crickets",
   "icon": "🦗",
   "category": "Reacciones"
  },
@@ -73,6 +83,7 @@
   "id": "builtin:freesound/175409",
   "file": "freesound/175409.ogg",
   "name": "Trombón triste",
+  "name_en": "Sad trombone",
   "icon": "🎺",
   "category": "Comedia"
  },
@@ -80,6 +91,7 @@
   "id": "builtin:freesound/383898",
   "file": "freesound/383898.ogg",
   "name": "Ba-dum-tss",
+  "name_en": "Ba-dum-tss",
   "icon": "🥁",
   "category": "Comedia"
  },
@@ -87,6 +99,7 @@
   "id": "builtin:freesound/197763",
   "file": "freesound/197763.ogg",
   "name": "Redoble",
+  "name_en": "Drum roll",
   "icon": "🪘",
   "category": "Comedia"
  },
@@ -94,6 +107,7 @@
   "id": "builtin:freesound/71853",
   "file": "freesound/71853.ogg",
   "name": "Scratch de disco",
+  "name_en": "Record scratch",
   "icon": "💿",
   "category": "Comedia"
  },
@@ -101,6 +115,7 @@
   "id": "builtin:freesound/131930",
   "file": "freesound/131930.ogg",
   "name": "Bocina",
+  "name_en": "Air horn",
   "icon": "📯",
   "category": "Comedia"
  },
@@ -108,6 +123,7 @@
   "id": "builtin:freesound/510496",
   "file": "freesound/510496.ogg",
   "name": "Boing",
+  "name_en": "Boing",
   "icon": "🪀",
   "category": "Comedia"
  },
@@ -115,6 +131,7 @@
   "id": "builtin:freesound/517633",
   "file": "freesound/517633.ogg",
   "name": "Silbato deslizante",
+  "name_en": "Slide whistle",
   "icon": "🎶",
   "category": "Comedia"
  },
@@ -122,6 +139,7 @@
   "id": "builtin:freesound/266450",
   "file": "freesound/266450.ogg",
   "name": "Pedo",
+  "name_en": "Fart",
   "icon": "💨",
   "category": "Comedia"
  },
@@ -129,6 +147,7 @@
   "id": "builtin:freesound/570266",
   "file": "freesound/570266.ogg",
   "name": "Eructo",
+  "name_en": "Burp",
   "icon": "🤢",
   "category": "Comedia"
  },
@@ -136,6 +155,7 @@
   "id": "builtin:freesound/486629",
   "file": "freesound/486629.ogg",
   "name": "Gong",
+  "name_en": "Gong",
   "icon": "🔔",
   "category": "Comedia"
  },
@@ -143,6 +163,7 @@
   "id": "builtin:freesound/418526",
   "file": "freesound/418526.ogg",
   "name": "Fanfarria (tadá)",
+  "name_en": "Fanfare (ta-da)",
   "icon": "🎉",
   "category": "Comedia"
  },
@@ -150,6 +171,7 @@
   "id": "builtin:freesound/213101",
   "file": "freesound/213101.ogg",
   "name": "Tensión dramática",
+  "name_en": "Dramatic sting",
   "icon": "😱",
   "category": "Comedia"
  },
@@ -157,6 +179,7 @@
   "id": "builtin:freesound/195116",
   "file": "freesound/195116.ogg",
   "name": "Pitido de censura",
+  "name_en": "Censor beep",
   "icon": "🤬",
   "category": "Comedia"
  },
@@ -164,6 +187,7 @@
   "id": "builtin:freesound/164089",
   "file": "freesound/164089.ogg",
   "name": "Incorrecto (buzzer)",
+  "name_en": "Wrong (buzzer)",
   "icon": "❌",
   "category": "Comedia"
  },
@@ -171,6 +195,7 @@
   "id": "builtin:freesound/243701",
   "file": "freesound/243701.ogg",
   "name": "Correcto",
+  "name_en": "Correct",
   "icon": "✅",
   "category": "Comedia"
  },
@@ -178,6 +203,7 @@
   "id": "builtin:freesound/184438",
   "file": "freesound/184438.ogg",
   "name": "Caja registradora",
+  "name_en": "Cash register",
   "icon": "💰",
   "category": "Comedia"
  },
@@ -185,6 +211,7 @@
   "id": "builtin:freesound/709925",
   "file": "freesound/709925.ogg",
   "name": "Campanilla",
+  "name_en": "Service bell",
   "icon": "🛎",
   "category": "Comedia"
  },
@@ -192,6 +219,7 @@
   "id": "builtin:freesound/423799",
   "file": "freesound/423799.ogg",
   "name": "Whoosh",
+  "name_en": "Whoosh",
   "icon": "💨",
   "category": "Acción"
  },
@@ -199,6 +227,7 @@
   "id": "builtin:freesound/162369",
   "file": "freesound/162369.ogg",
   "name": "Puñetazo",
+  "name_en": "Punch",
   "icon": "👊",
   "category": "Acción"
  },
@@ -206,6 +235,7 @@
   "id": "builtin:freesound/861043",
   "file": "freesound/861043.ogg",
   "name": "Cristal roto",
+  "name_en": "Glass break",
   "icon": "🪟",
   "category": "Acción"
  },
@@ -213,6 +243,7 @@
   "id": "builtin:freesound/165911",
   "file": "freesound/165911.ogg",
   "name": "Explosión",
+  "name_en": "Explosion",
   "icon": "💥",
   "category": "Acción"
  },
@@ -220,6 +251,7 @@
   "id": "builtin:freesound/652690",
   "file": "freesound/652690.ogg",
   "name": "Trueno",
+  "name_en": "Thunder",
   "icon": "⛈",
   "category": "Acción"
  },
@@ -227,6 +259,7 @@
   "id": "builtin:freesound/235592",
   "file": "freesound/235592.ogg",
   "name": "Grito",
+  "name_en": "Scream",
   "icon": "😱",
   "category": "Acción"
  },
@@ -234,6 +267,7 @@
   "id": "builtin:freesound/688735",
   "file": "freesound/688735.ogg",
   "name": "Latido",
+  "name_en": "Heartbeat",
   "icon": "💓",
   "category": "Acción"
  },
@@ -241,6 +275,7 @@
   "id": "builtin:freesound/154398",
   "file": "freesound/154398.ogg",
   "name": "Beso",
+  "name_en": "Kiss",
   "icon": "💋",
   "category": "Cotidianos"
  },
@@ -248,6 +283,7 @@
   "id": "builtin:freesound/151240",
   "file": "freesound/151240.ogg",
   "name": "Bostezo",
+  "name_en": "Yawn",
   "icon": "🥱",
   "category": "Cotidianos"
  },
@@ -255,6 +291,7 @@
   "id": "builtin:freesound/114609",
   "file": "freesound/114609.ogg",
   "name": "Ronquido",
+  "name_en": "Snore",
   "icon": "😴",
   "category": "Cotidianos"
  },
@@ -262,6 +299,7 @@
   "id": "builtin:freesound/528111",
   "file": "freesound/528111.ogg",
   "name": "Teléfono",
+  "name_en": "Phone ring",
   "icon": "☎",
   "category": "Cotidianos"
  },
@@ -269,6 +307,7 @@
   "id": "builtin:freesound/256513",
   "file": "freesound/256513.ogg",
   "name": "Llamar a la puerta",
+  "name_en": "Door knock",
   "icon": "🚪",
   "category": "Cotidianos"
  },
@@ -276,6 +315,7 @@
   "id": "builtin:freesound/709948",
   "file": "freesound/709948.ogg",
   "name": "Timbre",
+  "name_en": "Doorbell",
   "icon": "🔔",
   "category": "Cotidianos"
  },
@@ -283,6 +323,7 @@
   "id": "builtin:freesound/625501",
   "file": "freesound/625501.ogg",
   "name": "Perro",
+  "name_en": "Dog",
   "icon": "🐶",
   "category": "Animales"
  },
@@ -290,6 +331,7 @@
   "id": "builtin:freesound/110011",
   "file": "freesound/110011.ogg",
   "name": "Gato",
+  "name_en": "Cat",
   "icon": "🐱",
   "category": "Animales"
  },
@@ -297,6 +339,7 @@
   "id": "builtin:freesound/435508",
   "file": "freesound/435508.ogg",
   "name": "Gallo",
+  "name_en": "Rooster",
   "icon": "🐓",
   "category": "Animales"
  },
@@ -304,6 +347,7 @@
   "id": "builtin:freesound/558858",
   "file": "freesound/558858.ogg",
   "name": "Pato",
+  "name_en": "Duck",
   "icon": "🦆",
   "category": "Animales"
  },
@@ -311,6 +355,7 @@
   "id": "builtin:kenney/round_1.ogg",
   "file": "kenney/round_1.ogg",
   "name": "«Round 1»",
+  "name_en": "Round 1",
   "icon": "1️⃣",
   "category": "Arcade"
  },
@@ -318,6 +363,7 @@
   "id": "builtin:kenney/fight.ogg",
   "file": "kenney/fight.ogg",
   "name": "«Fight!»",
+  "name_en": "Fight!",
   "icon": "🥊",
   "category": "Arcade"
  },
@@ -325,6 +371,7 @@
   "id": "builtin:kenney/combo_breaker.ogg",
   "file": "kenney/combo_breaker.ogg",
   "name": "«Combo breaker»",
+  "name_en": "Combo breaker",
   "icon": "💥",
   "category": "Arcade"
  },
@@ -332,6 +379,7 @@
   "id": "builtin:kenney/multi_kill.ogg",
   "file": "kenney/multi_kill.ogg",
   "name": "«Multi kill»",
+  "name_en": "Multi kill",
   "icon": "🔥",
   "category": "Arcade"
  },
@@ -339,6 +387,7 @@
   "id": "builtin:kenney/flawless_victory.ogg",
   "file": "kenney/flawless_victory.ogg",
   "name": "«Flawless victory»",
+  "name_en": "Flawless victory",
   "icon": "👑",
   "category": "Arcade"
  },
@@ -346,6 +395,7 @@
   "id": "builtin:kenney/you_win.ogg",
   "file": "kenney/you_win.ogg",
   "name": "«You win»",
+  "name_en": "You win",
   "icon": "🏅",
   "category": "Arcade"
  },
@@ -353,6 +403,7 @@
   "id": "builtin:kenney/loser.ogg",
   "file": "kenney/loser.ogg",
   "name": "«Loser»",
+  "name_en": "Loser",
   "icon": "🫠",
   "category": "Arcade"
  },
@@ -360,6 +411,7 @@
   "id": "builtin:kenney/v_game_over.ogg",
   "file": "kenney/v_game_over.ogg",
   "name": "«Game over»",
+  "name_en": "Game over",
   "icon": "🕹",
   "category": "Arcade"
  }
