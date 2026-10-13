@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Archivos de trabajo locales
+Errores/
+Use AI Image*.jpg
