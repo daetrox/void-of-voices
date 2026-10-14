@@ -27,7 +27,7 @@ from .engine import AudioEngine, Preview
 from .hotkeys import ACTIONS, GlobalHotkeys, hyprland_binds, pretty, to_portal
 from .i18n import LANGUAGES, T, language, set_language
 from .widgets import (ACCENT, SLIDERS, STYLE, CheckListDialog, LevelMeter, ParamSlider, RoundToggle,
-                      card, dark_palette, glyph_icon, iconize, key_capture, scroll_page)
+                      IconPicker, card, dark_palette, glyph_icon, iconize, key_capture, scroll_page)
 from .windows import QuickVoicesWindow, SoundPanelWindow
 
 DEFAULT_SLOTS = ["Robot", "Demonio", "Femenina", "Ardilla", "Radio"]
@@ -971,9 +971,9 @@ class MainWindow(QMainWindow):
             if ok and name.strip():
                 self._set_meta(sid, name=name.strip()[:40])
         elif act is a_icon:
-            icon, ok = QInputDialog.getText(self, T("Icono"), T("Emoji o carácter:"), text=m["icon"])
-            if ok and icon.strip():
-                self._set_meta(sid, icon=icon.strip()[:2])
+            picker = IconPicker(self, m["icon"])
+            if picker.exec() and picker.value:
+                self._set_meta(sid, icon=picker.value)
         elif act is a_vol:
             v, ok = QInputDialog.getInt(self, T("Volumen"), T("Volumen del sonido (%):"), m["volume"], 0, 300, 5)
             if ok:

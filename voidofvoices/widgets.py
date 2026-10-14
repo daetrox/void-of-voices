@@ -2,21 +2,21 @@
 
 import math
 from functools import lru_cache
+from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (QColor, QFont, QIcon, QLinearGradient, QPainter, QPalette, QPen,
                            QPixmap, QRadialGradient)
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
-    QAbstractButton, QCheckBox, QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QLabel,
-    QListWidget, QListWidgetItem, QScrollArea, QSizePolicy, QSlider, QToolButton,
-    QVBoxLayout, QWidget,
+    QAbstractButton, QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QFrame, QHBoxLayout, QLabel,
+    QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
+    QSlider, QTabWidget, QToolButton, QVBoxLayout, QWidget,
 )
 
-from . import RESOURCE_DIR
+from . import ICON_DIR, USER_ICON_DIR
 from .i18n import T
 
-ICON_DIR = RESOURCE_DIR / "voidofvoices" / "assets" / "icons"   # Lucide (ISC)
 # Prefijos de los textos de botones → icono SVG (los textos los conservan para traducirse).
 PREFIX_ICONS = {"⇄": "arrow-left-right", "🪟": "app-window", "＋": "plus", "⬇": "download",
                 "⬆": "upload", "📦": "package", "⏹": "square-stop", "⏻": "power", "🔇": "mic-off"}
@@ -150,13 +150,20 @@ SLIDERS = {
 
 @lru_cache(maxsize=None)
 def glyph_icon(text, size=28, color="#d9dcdf"):
-    """Icono SVG de assets/icons si ``text`` es su nombre («mic»); si no, el
-    carácter/emoji (los sonidos de los usuarios usan emojis)."""
+    """Icono SVG de Lucide si ``text`` es su nombre («mic»), imagen del usuario
+    si es «img:archivo»; si no, el carácter/emoji."""
     pm = QPixmap(size * 2, size * 2)
     pm.fill(Qt.transparent)
     p = QPainter(pm)
+    if text.startswith("img:"):
+        img = QPixmap(str(USER_ICON_DIR / Path(text[4:]).name))
+        if not img.isNull():
+            img = img.scaled(int(size * 1.6), int(size * 1.6), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            p.drawPixmap((pm.width() - img.width()) // 2, (pm.height() - img.height()) // 2, img)
+        p.end()
+        return QIcon(pm)
     svg = ICON_DIR / f"{text}.svg"
-    if svg.is_file():
+    if text and "/" not in text and svg.is_file():
         data = svg.read_bytes().replace(b"currentColor", color.encode())
         QSvgRenderer(QByteArray(data)).render(p, QRectF(size * 0.25, size * 0.25, size * 1.5, size * 1.5))
         p.end()
@@ -439,3 +446,117 @@ def key_capture(parent, title, text):
     if dlg.exec() == QDialog.Accepted:
         return edit.keySequence().toString()
     return ""
+
+
+class IconPicker(QDialog):
+    """Elige el icono de un sonido: SVG de Lucide, emoji o imagen propia.
+    Tras exec(), ``value`` tiene el texto del icono (ver glyph_icon)."""
+
+    EMOJIS = ["🔊", "🎵", "🎶", "🎤", "🎧", "📢", "📣", "🔔", "🎺", "🎸", "🥁", "🎹", "👏", "🙌",
+              "😂", "🤣", "😮", "😱", "😭", "😡", "😈", "👻", "🤖", "👽", "💀", "🔥", "💥", "⚡",
+              "💣", "🎉", "🎊", "🏆", "👑", "💰", "💸", "❤️", "💔", "👍", "👎", "👋", "🤘", "✨",
+              "⭐", "💫", "🐶", "🐱", "🐔", "🦆", "🐸", "🐍", "🦁", "🐮", "🚨", "🚀", "🚗", "🚓",
+              "⏰", "☎️", "💬", "❓", "❗", "💯", "🎮", "🕹️", "👾", "🍕", "🍺", "💩", "🤡", "🗿"]
+
+    # Sin búsqueda se muestran primero estos (los útiles para sonidos).
+    SUGGESTED = ("audio-lines music music-2 mic megaphone bell bell-ring drum guitar piano volume-2 laugh "
+                 "smile frown angry annoyed ghost skull bot flame zap bomb siren party-popper trophy crown "
+                 "gem coins banknote heart heart-crack thumbs-up thumbs-down hand hand-metal sparkles star "
+                 "rocket car ambulance phone phone-call clock alarm-clock door-open dog cat bird fish rabbit "
+                 "squirrel rat bug snail turtle egg pizza beer coffee cake gamepad-2 joystick swords sword "
+                 "shield target crosshair gift").split()
+
+    def __init__(self, parent, current=""):
+        super().__init__(parent)
+        self.setWindowTitle(T("Elegir icono"))
+        self.resize(600, 500)
+        self.value = None
+        v = QVBoxLayout(self)
+        tabs = QTabWidget()
+        v.addWidget(tabs)
+
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        self.search = QLineEdit(placeholderText=T("Buscar icono en inglés: dog, music, fire, laugh…"))
+        lay.addWidget(self.search)
+        self.grid = self._grid()
+        lay.addWidget(self.grid)
+        self._names = sorted(p.stem for p in ICON_DIR.glob("*.svg"))
+        self.search.textChanged.connect(self._filter)
+        self._filter("")
+        tabs.addTab(page, T("Iconos"))
+
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        grid = self._grid()
+        for e in self.EMOJIS:
+            grid.addItem(self._item(e))
+        lay.addWidget(grid)
+        row = QHBoxLayout()
+        self.emoji = QLineEdit(placeholderText=T("…o escribe o pega cualquier emoji"))
+        use = QPushButton(T("Usar"), objectName="ghost")
+        use.clicked.connect(lambda: self.emoji.text().strip() and self._choose(self.emoji.text().strip()[:8]))
+        row.addWidget(self.emoji)
+        row.addWidget(use)
+        lay.addLayout(row)
+        tabs.addTab(page, T("Emoji"))
+
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.addWidget(QLabel(T("Una imagen tuya: PNG, JPG, SVG, WebP o GIF de hasta 2 MB.")))
+        pick = QPushButton(T("Elegir imagen…"), objectName="ghost")
+        pick.clicked.connect(self._pick_image)
+        lay.addWidget(pick, 0, Qt.AlignLeft)
+        lay.addStretch()
+        tabs.addTab(page, T("Imagen"))
+
+        bb = QDialogButtonBox(QDialogButtonBox.Cancel)
+        bb.button(QDialogButtonBox.Cancel).setText(T("Cancelar"))
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+        if current.startswith("img:"):
+            tabs.setCurrentIndex(2)
+        elif current and not (ICON_DIR / f"{current}.svg").is_file():
+            tabs.setCurrentIndex(1)
+
+    def _grid(self):
+        lw = QListWidget()
+        lw.setViewMode(QListWidget.IconMode)
+        lw.setIconSize(QSize(28, 28))
+        lw.setGridSize(QSize(50, 50))
+        lw.setResizeMode(QListWidget.Adjust)
+        lw.setMovement(QListWidget.Static)
+        lw.setUniformItemSizes(True)
+        lw.itemClicked.connect(lambda it: self._choose(it.data(Qt.UserRole)))
+        return lw
+
+    def _item(self, icon):
+        it = QListWidgetItem(glyph_icon(icon, 24), "")
+        it.setToolTip(icon)
+        it.setData(Qt.UserRole, icon)
+        return it
+
+    def _filter(self, text):
+        self.grid.clear()
+        words = text.lower().split()
+        names = [n for n in self._names if all(w in n for w in words)]
+        if not words:
+            names = self.SUGGESTED + [n for n in names if n not in self.SUGGESTED]
+        # ponytail: solo los 400 primeros resultados; dibujar los 2.000+ iconos tarda segundos.
+        for name in names[:400]:
+            self.grid.addItem(self._item(name))
+
+    def _choose(self, value):
+        self.value = value
+        self.accept()
+
+    def _pick_image(self):
+        from .soundboard import save_user_icon
+        exts = " ".join(f"*{x}" for x in (".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif"))
+        path, _ = QFileDialog.getOpenFileName(self, T("Elegir imagen"), str(Path.home()), f"{T('Imágenes')} ({exts})")
+        if not path:
+            return
+        try:
+            self._choose(save_user_icon(Path(path).read_bytes(), Path(path).suffix))
+        except (OSError, ValueError) as e:
+            QMessageBox.warning(self, T("Elegir imagen"), T("No se pudo usar la imagen: {}").format(e))

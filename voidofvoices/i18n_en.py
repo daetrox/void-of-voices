@@ -173,4 +173,10 @@ EN = {
     "Robot": "Robot", "Androide": "Android", "Alien": "Alien", "Monstruo": "Monster", "Arcade 8-bit": "8-bit arcade",
     "Ambientes": "Places", "Radio": "Radio", "Teléfono": "Phone", "Walkie-talkie": "Walkie-talkie",
     "Megáfono": "Megaphone", "Cueva": "Cave", "Catedral": "Cathedral", "Estadio": "Stadium",
+    "Elegir icono": "Choose icon", "Iconos": "Icons", "Emoji": "Emoji", "Imagen": "Image",
+    "Buscar icono en inglés: dog, music, fire, laugh…": "Search icons: dog, music, fire, laugh…",
+    "…o escribe o pega cualquier emoji": "…or type or paste any emoji", "Usar": "Use",
+    "Una imagen tuya: PNG, JPG, SVG, WebP o GIF de hasta 2 MB.": "Your own image: PNG, JPG, SVG, WebP or GIF up to 2 MB.",
+    "Elegir imagen…": "Choose image…", "Elegir imagen": "Choose image", "Imágenes": "Images",
+    "No se pudo usar la imagen: {}": "Couldn't use the image: {}", "Cancelar": "Cancel",
 }

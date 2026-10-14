@@ -5,9 +5,9 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from . import __version__
+from . import ICON_DIR, ICON_IMAGE_EXTS, MAX_ICON_BYTES, USER_ICON_DIR, __version__
 from .dsp import Params, VOICE_KEYS
-from .soundboard import IMPORT_EXTS, USER_DIR, load_audio
+from .soundboard import IMPORT_EXTS, USER_DIR, load_audio, save_user_icon
 
 VOICE_EXT = ".vovoice"
 PACK_EXT = ".vopack"
@@ -75,9 +75,28 @@ def export_sound_pack(path, pack_name, sounds):
             src = Path(s["path"])
             arc = f"sounds/{i:03d}{src.suffix.lower()}"
             z.write(src, arc)
-            manifest["sounds"].append({"file": arc, "name": s["name"], "icon": s.get("icon", "🔊"),
+            icon = s.get("icon", "🔊")
+            if icon.startswith("img:") and (USER_ICON_DIR / Path(icon[4:]).name).is_file():
+                img = USER_ICON_DIR / Path(icon[4:]).name
+                icon = f"img:icons/{i:03d}{img.suffix.lower()}"
+                z.write(img, icon[4:])
+            manifest["sounds"].append({"file": arc, "name": s["name"], "icon": icon,
                                        "volume": int(s.get("volume", 100)), "loop": bool(s.get("loop"))})
         z.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+
+
+def _pack_icon(z, names, icon):
+    """Icono de un sonido del paquete: imagen incluida, SVG conocido o emoji."""
+    icon = str(icon or "🔊")
+    if icon.startswith("img:"):
+        arc = icon[4:]
+        ext = Path(arc).suffix.lower()
+        if arc in names and ext in ICON_IMAGE_EXTS and z.getinfo(arc).file_size <= MAX_ICON_BYTES:
+            return save_user_icon(z.read(arc), ext)
+        return "🔊"
+    if (ICON_DIR / f"{icon}.svg").is_file() and "/" not in icon:
+        return icon
+    return icon[:8]
 
 
 def import_sound_pack(path):
@@ -120,7 +139,7 @@ def import_sound_pack(path):
                 errors.append(arc)
                 continue
             entry = {"id": f"user:{sid}", "path": str(dst),
-                     "name": str(item.get("name", sid))[:40], "icon": str(item.get("icon", "🔊"))[:2],
+                     "name": str(item.get("name", sid))[:40], "icon": _pack_icon(z, names, item.get("icon")),
                      "category": pack, "builtin": False}
             entries.append(entry)
             vol = item.get("volume", 100)
