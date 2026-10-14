@@ -28,7 +28,7 @@ from .engine import AudioEngine, Preview
 from .hotkeys import ACTIONS, GlobalHotkeys, HyprlandBinds, pretty, to_portal
 from .i18n import LANGUAGES, T, language, set_language
 from .widgets import (ACCENT, SLIDERS, STYLE, CheckListDialog, LevelMeter, ParamSlider, RoundToggle,
-                      IconPicker, KeyButton, SaveVoiceDialog, card, dark_palette, glyph_icon, iconize, key_capture, scroll_page)
+                      FlowRow, IconPicker, KeyButton, ReflowGrid, SaveVoiceDialog, card, dark_palette, glyph_icon, iconize, key_capture, scroll_page)
 from .windows import QuickVoicesWindow, SoundPanelWindow
 
 DECK_SIZE, DECK_COLS = 12, 6   # casillas de cada panel rápido (voces y sonidos): 6×2
@@ -254,9 +254,7 @@ class MainWindow(QMainWindow):
             self.vb_banner.setVisible(not devices.virtual_mic_ready())
             col.addWidget(self.vb_banner)
 
-        top = QHBoxLayout()
-        top.setSpacing(14)
-        box = QFrame(objectName="card")
+        toggles = box = QFrame(objectName="card")
         row = QHBoxLayout(box)
         row.setContentsMargins(16, 10, 16, 10)
         self.power = RoundToggle(120, T("ENCENDIDO"), T("APAGADO"), T("ACTIVO"), T("ACTIVAR"))
@@ -272,9 +270,8 @@ class MainWindow(QMainWindow):
         self.mute.setToolTip(T("Silenciar tu voz (los sonidos siguen funcionando)"))
         self.mute.toggled.connect(self.set_muted)
         row.addWidget(self.mute)
-        top.addWidget(box)
 
-        box = QFrame(objectName="card")
+        voice_opts = box = QFrame(objectName="card")
         v = QVBoxLayout(box)
         v.setContentsMargins(14, 8, 14, 12)
         head = QToolButton(objectName="cardToggle")
@@ -307,9 +304,8 @@ class MainWindow(QMainWindow):
         v.addWidget(options)
         head.toggled.connect(lambda on: (options.setVisible(on),
                                          head.setIcon(glyph_icon("chevron-up" if on else "chevron-down", 14, ACCENT))))
-        top.addWidget(box)
 
-        box = QFrame(objectName="card")
+        meters = box = QFrame(objectName="card")
         g = QGridLayout(box)
         g.setContentsMargins(16, 12, 16, 8)
         g.setHorizontalSpacing(12)
@@ -322,21 +318,22 @@ class MainWindow(QMainWindow):
             g.addWidget(QLabel(T(text), objectName="meterLabel"), r, 1, Qt.AlignTop)
             g.addWidget(meter, r, 2)
         g.setColumnStretch(2, 1)
-        top.addWidget(box, 1)
-        col.addLayout(top)
+        meters.setMinimumWidth(330)
+        # Si no caben en una línea, los medidores bajan y ocupan todo el ancho.
+        col.addWidget(FlowRow([toggles, voice_opts, meters], stretch=[2]))
 
-        self.voice_deck, self.sound_deck = QGridLayout(), QGridLayout()
+        self.voice_deck, self.sound_deck = ReflowGrid(120, DECK_COLS), ReflowGrid(120, DECK_COLS)
         for title, deck in (("Voces rápidas", self.voice_deck), ("Sonidos rápidos", self.sound_deck)):
             box, lay = card(title, "Clic para usar · Clic derecho o ⋮ para cambiar la casilla.")
-            deck.setSpacing(8)
-            lay.addLayout(deck)
-            col.addWidget(box)
-        col.addStretch()
+            lay.addWidget(deck, 1)
+            col.addWidget(box, 1)          # los paneles se reparten la altura sobrante
         return area
 
     def _deck_tile(self, button, open_menu):
         """Casilla del panel rápido: el botón y, encima, «⋮» para cambiarla."""
         w = QWidget()
+        w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        w.setMaximumHeight(170)            # tope: en ventanas muy altas no quedan casillas gigantes
         g = QGridLayout(w)
         g.setContentsMargins(0, 0, 0, 0)
         g.addWidget(button, 0, 0)
@@ -356,10 +353,14 @@ class MainWindow(QMainWindow):
         b.setIcon(glyph_icon(icon, 26, color or "#d9dcdf"))
         b.setIconSize(QSize(26, 26))
         b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-        b.setMinimumSize(120, 76)
-        b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._deck_sizing(b)
         b.setCursor(Qt.PointingHandCursor)
         return b
+
+    @staticmethod
+    def _deck_sizing(b):
+        b.setMinimumSize(110, 76)
+        b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)   # crece con la ventana
 
     def _rebuild_decks(self):
         if not hasattr(self, "voice_deck"):
@@ -367,21 +368,19 @@ class MainWindow(QMainWindow):
         self.forget_voice_buttons("deck")
         for sid in list(self.sound_buttons):
             self.sound_buttons[sid] = [(o, b) for o, b in self.sound_buttons[sid] if o != "deck"]
-        for deck in (self.voice_deck, self.sound_deck):
-            while deck.count():
-                w = deck.takeAt(0).widget()
-                if w:
-                    w.deleteLater()
         names = set(self.voice_names())
+        tiles = []
         for i, name in enumerate(self.voice_slots):
             if name in names:
-                b = self.voice_card(name, owner="deck", size=(120, 76))
+                b = self.voice_card(name, owner="deck", size=(110, 76))
+                self._deck_sizing(b)
             else:
                 b = self._deck_button(T("Vacío"), "plus")
                 b.clicked.connect(lambda _=False, i=i, b=b: self._deck_menu("voice", i, b))
             self._deck_context(b, "voice", i)
-            tile = self._deck_tile(b, lambda w, i=i: self._deck_menu("voice", i, w))
-            self.voice_deck.addWidget(tile, i // DECK_COLS, i % DECK_COLS)
+            tiles.append(self._deck_tile(b, lambda w, i=i: self._deck_menu("voice", i, w)))
+        self.voice_deck.set_widgets(tiles)
+        tiles = []
         entries = getattr(self, "_entries", {})
         if self.sound_slots is None and entries:
             self.sound_slots = list(entries)[:DECK_SIZE]
@@ -397,8 +396,8 @@ class MainWindow(QMainWindow):
                 b = self._deck_button(T("Vacío"), "plus")
                 b.clicked.connect(lambda _=False, i=i, b=b: self._deck_menu("sound", i, b))
             self._deck_context(b, "sound", i)
-            tile = self._deck_tile(b, lambda w, i=i: self._deck_menu("sound", i, w))
-            self.sound_deck.addWidget(tile, i // DECK_COLS, i % DECK_COLS)
+            tiles.append(self._deck_tile(b, lambda w, i=i: self._deck_menu("sound", i, w)))
+        self.sound_deck.set_widgets(tiles)
         self.mark_current_voice()
 
     def _category_title(self, cat):

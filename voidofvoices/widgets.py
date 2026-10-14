@@ -9,7 +9,8 @@ from PySide6.QtGui import (QColor, QFont, QIcon, QKeySequence, QLinearGradient, 
                            QPixmap, QRadialGradient)
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
-    QAbstractButton, QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QFrame, QHBoxLayout, QLabel,
+    QAbstractButton, QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+    QLabel, QLayout,
     QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
     QSlider, QTabWidget, QToolButton, QVBoxLayout, QWidget,
 )
@@ -703,3 +704,103 @@ class SaveVoiceDialog(QDialog):
         if picker.exec() and picker.value:
             self.icon = picker.value
             self._show_icon()
+
+
+class FlowRow(QWidget):
+    """Fila de tarjetas que pasa a la línea siguiente las que no caben.
+    Las de ``stretch`` (índices) se estiran para llenar su línea."""
+
+    def __init__(self, widgets, stretch=(), spacing=14):
+        super().__init__()
+        self.items, self.stretch, self.spacing = list(widgets), set(stretch), spacing
+        self.v = QVBoxLayout(self)
+        self.v.setContentsMargins(0, 0, 0, 0)
+        self.v.setSpacing(spacing)
+        self.v.setSizeConstraint(QLayout.SetNoConstraint)   # el ancho mínimo lo da minimumSizeHint
+        self._rows = None
+        self._apply([list(range(len(self.items)))])
+
+    def _rows_for(self, width):
+        rows, cur, used = [], [], 0
+        for i, w in enumerate(self.items):
+            need = w.sizeHint().width()
+            if cur and used + self.spacing + need > width:
+                rows.append(cur)
+                cur, used = [], 0
+            used += (self.spacing if cur else 0) + need
+            cur.append(i)
+        return rows + [cur] if cur else rows
+
+    def _apply(self, rows):
+        self._rows = rows
+        while self.v.count():
+            lay = self.v.takeAt(0).layout()
+            while lay and lay.count():
+                lay.takeAt(0)
+        for row in rows:
+            h = QHBoxLayout()
+            h.setSpacing(self.spacing)
+            for i in row:
+                h.addWidget(self.items[i], 1 if i in self.stretch else 0)
+            if not self.stretch & set(row):
+                h.addStretch()
+            self.v.addLayout(h)
+        self.updateGeometry()
+
+    def resizeEvent(self, e):
+        rows = self._rows_for(e.size().width())
+        if rows != self._rows:
+            self._apply(rows)
+        super().resizeEvent(e)
+
+    def minimumSizeHint(self):
+        return QSize(max(w.minimumSizeHint().width() for w in self.items), self.v.minimumSize().height())
+
+    def sizeHint(self):
+        return QSize(super().sizeHint().width(), self.v.sizeHint().height())
+
+
+class ReflowGrid(QWidget):
+    """Rejilla de casillas con tantas columnas como quepan (hasta ``max_cols``);
+    las filas se reparten la altura disponible."""
+
+    def __init__(self, cell_width, max_cols=6, spacing=8):
+        super().__init__()
+        self.cell_width, self.max_cols, self.spacing = cell_width, max_cols, spacing
+        self.g = QGridLayout(self)
+        self.g.setContentsMargins(0, 0, 0, 0)
+        self.g.setSpacing(spacing)
+        self.g.setSizeConstraint(QLayout.SetNoConstraint)
+        self.cells, self.cols = [], 0
+
+    def set_widgets(self, widgets):
+        for w in self.cells:
+            w.deleteLater()
+        self.cells = list(widgets)
+        for w in self.cells:
+            w.setParent(self)
+            w.show()
+        self.cols = 0
+        self._place(self.width())
+
+    def _place(self, width):
+        cols = max(1, min(self.max_cols, (width + self.spacing) // (self.cell_width + self.spacing)))
+        if cols == self.cols:
+            return
+        self.cols = cols
+        while self.g.count():
+            self.g.takeAt(0)
+        for i, w in enumerate(self.cells):
+            self.g.addWidget(w, i // cols, i % cols)
+        for c in range(self.max_cols):
+            self.g.setColumnStretch(c, 1 if c < cols else 0)
+        for r in range(len(self.cells)):
+            self.g.setRowStretch(r, 1 if r <= (len(self.cells) - 1) // cols else 0)
+        self.updateGeometry()
+
+    def resizeEvent(self, e):
+        self._place(e.size().width())
+        super().resizeEvent(e)
+
+    def minimumSizeHint(self):
+        return QSize(self.cell_width, self.g.minimumSize().height())
