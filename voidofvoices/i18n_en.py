@@ -194,4 +194,15 @@ EN = {
     "Panel": "Panel", "Voz conf": "Voice setup", "Sonidos rápidos": "Quick sounds",
     "Clic para usar; ⋮ para cambiar la casilla.": "Click to use; ⋮ to change the slot.",
     "Cambiar casilla": "Change slot", "Vacío": "Empty", "Vaciar casilla": "Clear slot",
+    "Personalizadas": "Custom", "Personalizados": "Custom",
+    "En «Voz conf» ajusta los controles y pulsa «Guardar como voz…». Clic derecho sobre una voz propia para renombrarla, cambiar su icono o borrarla.":
+        "In “Voice setup” adjust the controls and press “Save as voice…”. Right-click one of your voices to rename it, change its icon or delete it.",
+    "Crear una voz en «Voz conf»…": "Create a voice in “Voice setup”…",
+    "Guardar voz": "Save voice", "Nombre e icono de la voz:": "Voice name and icon:", "Mi voz": "My voice",
+    "Guardar": "Save", "＋ Guardar como voz…": "＋ Save as voice…",
+    "Ajusta tu voz y guárdala para usarla cuando quieras.": "Tune your voice and save it to use it whenever you want.",
+    "Opciones de voz": "Voice options", "Normal /\núltima voz": "Normal /\nlast voice",
+    "Selector\nde voces": "Voice\npicker", "Panel de\nsonidos": "Sound\npanel",
+    "ENTRADA": "INPUT", "SALIDA": "OUTPUT",
+    "Clic para usar · Clic derecho o ⋮ para cambiar la casilla.": "Click to use · Right-click or ⋮ to change the slot.",
 }

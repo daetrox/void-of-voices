@@ -42,6 +42,13 @@ QPushButton#pill[warn="true"]:checked {{ background: #5e2f2f; border-color: #f07
 #banner {{ background: #3a3220; border: 1px solid #806a2e; border-radius: 8px; }}
 #banner QLabel {{ color: #f3e3b5; }}
 #key {{ color: {ACCENT}; font-family: monospace; }}
+QToolButton#option {{
+    background: #24262a; border: 1px solid #3f6e57; border-radius: 10px; padding: 6px; font-size: 12px;
+}}
+QToolButton#option:hover {{ border-color: {ACCENT}; background: #22302a; }}
+QToolButton#cardToggle {{ background: transparent; border: none; color: {ACCENT}; font-size: 14px; font-weight: 600; }}
+#vsep {{ background: #3f4246; max-width: 1px; }}
+#meterLabel {{ font-size: 13px; font-weight: 700; letter-spacing: 1px; }}
 QToolButton#deckDots {{ background: transparent; border: none; padding: 3px; margin: 2px; }}
 QToolButton#deckDots:hover {{ background: #3a3c40; border-radius: 5px; }}
 QPushButton#keybind {{
@@ -269,37 +276,44 @@ class RoundToggle(QAbstractButton):
 
 
 class LevelMeter(QWidget):
-    """Dos barras verticales (entrada/salida) con caída suave."""
+    """Medidor horizontal por segmentos con escala de -60 a 0 dBFS y caída suave."""
+
+    SEGMENTS = 40
+    TICKS = (-60, -48, -36, -24, -12, 0)
 
     def __init__(self):
         super().__init__()
-        self.setFixedSize(60, 150)
-        self.levels = [0.0, 0.0]
+        self.setMinimumSize(150, 40)
+        self.level = 0.0
 
-    def set_levels(self, a, b):
-        def db(v):  # -60..0 dBFS → 0..1
-            return max(0.0, min(1.0, (20 * math.log10(v + 1e-9) + 60) / 60))
-        new = [db(a), db(b)]
-        self.levels = [max(n, o - 0.04) for n, o in zip(new, self.levels)]
+    def set_level(self, v):
+        new = max(0.0, min(1.0, (20 * math.log10(v + 1e-9) + 60) / 60))
+        self.level = max(new, self.level - 0.04)
         self.update()
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        h = self.height() - 22
-        for i, lv in enumerate(self.levels):
-            x = 12 + i * 22
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor("#34373b"))
-            p.drawRoundedRect(QRectF(x, 0, 12, h), 3, 3)
-            fill = h * lv
-            p.setBrush(QColor(ACCENT) if lv < 0.9 else QColor("#f0c05e"))
-            p.drawRoundedRect(QRectF(x, h - fill, 12, fill), 3, 3)
-        p.setPen(QColor(ACCENT))
+        w, bar = self.width(), 16
+        seg = w / self.SEGMENTS
+        lit = round(self.level * self.SEGMENTS)
+        p.setPen(Qt.NoPen)
+        for i in range(self.SEGMENTS):
+            frac = (i + 1) / self.SEGMENTS
+            color = ACCENT if frac <= 0.8 else "#f0c05e" if frac <= 0.95 else "#f05e5e"
+            p.setBrush(QColor(color) if i < lit else QColor("#3a3d41"))
+            p.drawRoundedRect(QRectF(i * seg + 1, 0, seg - 3, bar), 2, 2)
         f = QFont(self.font())
-        f.setPointSize(8)
+        f.setPointSizeF(7.5)
         p.setFont(f)
-        p.drawText(QRectF(0, h + 4, self.width(), 16), Qt.AlignCenter, "IN   OUT")
+        p.setPen(QColor("#8a8e93"))
+        for db in self.TICKS:
+            x = (db + 60) / 60 * (w - 1)
+            p.drawLine(QPointF(x, bar + 3), QPointF(x, bar + 6))
+            label = f"{db} dB" if db == 0 else str(db)
+            align = Qt.AlignLeft if db == -60 else Qt.AlignRight if db == 0 else Qt.AlignHCenter
+            rect = QRectF(x - (0 if db == -60 else 44 if db == 0 else 22), bar + 7, 44, 14)
+            p.drawText(rect, align, label)
 
 
 class ParamSlider(QWidget):
@@ -650,3 +664,42 @@ class KeyButton(QPushButton):
         if self.capturing:
             self._stop()
         super().focusOutEvent(e)
+
+
+class SaveVoiceDialog(QDialog):
+    """Nombre e icono para guardar los ajustes actuales como una voz propia."""
+
+    def __init__(self, parent, name="", icon="star"):
+        super().__init__(parent)
+        self.setWindowTitle(T("Guardar voz"))
+        self.icon = icon
+        v = QVBoxLayout(self)
+        v.addWidget(QLabel(T("Nombre e icono de la voz:")))
+        row = QHBoxLayout()
+        self.icon_btn = QToolButton(objectName="voice")
+        self.icon_btn.setIconSize(QSize(30, 30))
+        self.icon_btn.setFixedSize(56, 56)
+        self.icon_btn.setToolTip(T("Elegir icono"))
+        self.icon_btn.clicked.connect(self._pick)
+        row.addWidget(self.icon_btn)
+        self.name = QLineEdit(name, placeholderText=T("Mi voz"))
+        self.name.setMaxLength(40)
+        row.addWidget(self.name, 1)
+        v.addLayout(row)
+        bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        bb.button(QDialogButtonBox.Save).setText(T("Guardar"))
+        bb.button(QDialogButtonBox.Cancel).setText(T("Cancelar"))
+        bb.accepted.connect(lambda: self.name.text().strip() and self.accept())
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+        self._show_icon()
+        self.name.setFocus()
+
+    def _show_icon(self):
+        self.icon_btn.setIcon(glyph_icon(self.icon, 30, ACCENT))
+
+    def _pick(self):
+        picker = IconPicker(self, self.icon)
+        if picker.exec() and picker.value:
+            self.icon = picker.value
+            self._show_icon()
