@@ -1675,14 +1675,26 @@ def selftest():
     sounds = builtin_sounds()
     data = load_audio(sounds[0]["path"])
     dsp_ok = bool(np.isfinite(y).all()) and abs(peak - 440) < 20
-    ok = dsp_ok and Denoiser.available and len(sounds) > 40 and len(data) > 1000
+    # Los programas del sistema no deben heredar las librerías empaquetadas (ver main).
+    host_env = "_internal" not in os.environ.get("LD_LIBRARY_PATH", "")
+    ok = dsp_ok and host_env and Denoiser.available and len(sounds) > 40 and len(data) > 1000
     print(f"{APP_NAME} {__version__} selftest: rnnoise={Denoiser.available} sonidos={len(sounds)} "
-          f"tono={peak:.0f}Hz dsp={'ok' if dsp_ok else 'ERROR'} -> {'OK' if ok else 'FALLO'}")
+          f"tono={peak:.0f}Hz dsp={'ok' if dsp_ok else 'ERROR'} entorno={'ok' if host_env else 'ERROR'} "
+          f"-> {'OK' if ok else 'FALLO'}")
     return 0 if ok else 1
 
 
 def main():
     # Selector de archivos nativo del escritorio (KDE/GNOME) vía portal.
+    if getattr(sys, "frozen", False) and not IS_WINDOWS:
+        # PyInstaller pone sus librerías en LD_LIBRARY_PATH y los programas del
+        # sistema que lanzamos (pactl, hyprctl…) cargarían su libstdc++ antigua y
+        # fallarían. El proceso actual ya las tiene resueltas: se restaura el original.
+        orig = os.environ.pop("LD_LIBRARY_PATH_ORIG", None)
+        if orig is None:
+            os.environ.pop("LD_LIBRARY_PATH", None)
+        else:
+            os.environ["LD_LIBRARY_PATH"] = orig
     if "--selftest" in sys.argv:
         return selftest()
     if not IS_WINDOWS:
