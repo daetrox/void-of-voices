@@ -133,7 +133,7 @@ class QuickVoicesWindow(_ToolWindow):
             if not name:
                 continue
             b = c.voice_card(name, owner="quick", small=True)
-            key = c.trigger_text(f"voice_{i + 1}")
+            key = c.trigger_text(f"voice:{name}")
             b.setText(f"{b.text()}\n{key}" if key else b.text())
             self.slots.addWidget(b, 0, i)
         self._items = []

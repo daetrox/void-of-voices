@@ -15,14 +15,10 @@ from PySide6.QtCore import QObject, Signal
 
 from . import APP_ID, IS_LINUX, IS_WINDOWS
 
-# id, descripción (español, se traduce en la UI), atajo sugerido
+# Acciones generales: id, descripción (español, se traduce en la UI), atajo sugerido.
+# La UI añade una acción por voz («voice:Nombre») y por sonido («sound:id»).
 ACTIONS = [
-    ("toggle_voice", "Voz normal ↔ última voz", "CTRL+ALT+0"),
-    ("voice_1", "Voz rápida 1", "CTRL+ALT+1"),
-    ("voice_2", "Voz rápida 2", "CTRL+ALT+2"),
-    ("voice_3", "Voz rápida 3", "CTRL+ALT+3"),
-    ("voice_4", "Voz rápida 4", "CTRL+ALT+4"),
-    ("voice_5", "Voz rápida 5", "CTRL+ALT+5"),
+    ("toggle_voice", "Voz normal ⇄ última voz", "CTRL+ALT+0"),
     ("mute", "Silenciar / activar micrófono", "CTRL+ALT+m"),
     ("ptt", "Pulsar para hablar (mantener)", "CTRL+ALT+h"),
     ("power", "Encender / apagar", "CTRL+ALT+e"),
@@ -48,11 +44,13 @@ def to_portal(qt_seq):
     return "+".join(out)
 
 
-def hyprland_binds(lua=False):
+def hyprland_binds(actions, lua=False):
     """Líneas para la config de Hyprland (clásica o Lua): su portal registra
     los atajos pero no les asigna teclas (ignora preferred_trigger)."""
     lines = []
-    for sid, _, trig in ACTIONS:
+    for sid, _, trig in actions:
+        if not trig:
+            continue
         *mods, key = trig.split("+")
         key = key.upper() if len(key) == 1 else key
         if lua:
@@ -78,8 +76,9 @@ class GlobalHotkeys(QObject):
     def can_configure_in_system(self):
         return self.backend == "portal"
 
-    def start(self, triggers):
-        """triggers: id → atajo (formato portal). En Linux son solo sugerencias."""
+    def start(self, actions):
+        """actions: [(id, descripción, atajo en formato portal o "")]. Con el
+        portal (KDE/GNOME) los atajos son solo sugerencias."""
         self.stop()
         if IS_LINUX:
             self._impl = _PortalHotkeys(self)
@@ -87,7 +86,7 @@ class GlobalHotkeys(QObject):
             self._impl = _WindowsHotkeys(self)
         else:
             return False
-        ok = self._impl.start(triggers)
+        ok = self._impl.start(list(actions))
         if not ok:
             self._impl = None
         return ok
@@ -116,13 +115,13 @@ class _PortalHotkeys:
         self.session = None
         self._stop = threading.Event()
 
-    def start(self, triggers):
+    def start(self, actions):
         try:
             from jeepney import DBusAddress  # noqa: F401
         except ImportError:
             self.owner.status.emit("jeepney no está instalado")
             return False
-        threading.Thread(target=self._run, args=(dict(triggers),), daemon=True).start()
+        threading.Thread(target=self._run, args=(actions,), daemon=True).start()
         return True
 
     def _request(self, member, signature, body, token):
@@ -144,7 +143,7 @@ class _PortalHotkeys:
             raise RuntimeError(f"{member} cancelado ({code})")
         return results
 
-    def _run(self, triggers):
+    def _run(self, actions):
         from jeepney import DBusAddress, HeaderFields, MatchRule, new_method_call
         from jeepney.bus_messages import message_bus
         from jeepney.io.threading import open_dbus_router
@@ -165,9 +164,8 @@ class _PortalHotkeys:
             },), token)
             self.session = res["session_handle"][1]
 
-            shortcuts = [(sid, {"description": ("s", T(desc)),
-                                "preferred_trigger": ("s", triggers.get(sid, trig))})
-                         for sid, desc, trig in ACTIONS]
+            shortcuts = [(sid, {"description": ("s", T(desc)), "preferred_trigger": ("s", trig)})
+                         for sid, desc, trig in actions]
             token = "vz" + secrets.token_hex(4)
             res = self._request("BindShortcuts", "oa(sa{sv})sa{sv}",
                                 (self.session, shortcuts, "", {"handle_token": ("s", token)}), token)
@@ -254,8 +252,8 @@ class _WindowsHotkeys:
             return None
         return mods, vk
 
-    def start(self, triggers):
-        self.triggers = {sid: triggers.get(sid, trig) for sid, _, trig in ACTIONS}
+    def start(self, actions):
+        self.triggers = {sid: trig for sid, _, trig in actions if trig}
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
         return True

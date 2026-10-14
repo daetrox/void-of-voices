@@ -141,7 +141,7 @@ EN = {
     "Ajustes guardados": "Settings saved",
 
     # --- atajos (acciones)
-    "Voz normal ↔ última voz": "Normal voice ↔ last voice",
+    "Voz normal ⇄ última voz": "Normal voice ⇄ last voice",
     "Voz rápida 1": "Quick voice 1", "Voz rápida 2": "Quick voice 2", "Voz rápida 3": "Quick voice 3",
     "Voz rápida 4": "Quick voice 4", "Voz rápida 5": "Quick voice 5",
     "Silenciar / activar micrófono": "Mute / unmute microphone", "Pulsar para hablar (mantener)": "Push to talk (hold)",
@@ -179,4 +179,13 @@ EN = {
     "Una imagen tuya: PNG, JPG, SVG, WebP o GIF de hasta 2 MB.": "Your own image: PNG, JPG, SVG, WebP or GIF up to 2 MB.",
     "Elegir imagen…": "Choose image…", "Elegir imagen": "Choose image", "Imágenes": "Images",
     "No se pudo usar la imagen: {}": "Couldn't use the image: {}", "Cancelar": "Cancel",
+    "Funcionan aunque estés dentro de un juego o de otra app. Haz clic en una tecla y pulsa la nueva; Retroceso la quita y Esc cancela.":
+        "They work even inside a game or another app. Click a key and press the new one; Backspace clears it, Esc cancels.",
+    "Copiar líneas": "Copy lines", "Buscar acción, voz o sonido…": "Search action, voice or sound…",
+    "Restablecer teclas": "Reset keys", "¿Volver a las teclas predeterminadas?": "Go back to the default keys?",
+    "General": "General",
+    "Las que salen en el selector de voces y en el menú de la bandeja.": "The ones shown in the voice picker and the tray menu.",
+    "Hyprland no asigna teclas a los atajos de las apps: copia estas líneas en tu configuración de Hyprland (y otra vez si cambias alguna tecla).":
+        "Hyprland doesn't assign keys to app shortcuts: copy these lines into your Hyprland config (again if you change a key).",
+    "> Pulsa una tecla <": "> Press a key <",
 }

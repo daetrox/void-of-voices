@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QPointF, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import (QColor, QFont, QIcon, QLinearGradient, QPainter, QPalette, QPen,
+from PySide6.QtGui import (QColor, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPalette, QPen,
                            QPixmap, QRadialGradient)
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import ICON_DIR, USER_ICON_DIR
+from .hotkeys import pretty, to_portal
 from .i18n import T
 
 # Prefijos de los textos de botones → icono SVG (los textos los conservan para traducirse).
@@ -41,6 +42,14 @@ QPushButton#pill[warn="true"]:checked {{ background: #5e2f2f; border-color: #f07
 #banner {{ background: #3a3220; border: 1px solid #806a2e; border-radius: 8px; }}
 #banner QLabel {{ color: #f3e3b5; }}
 #key {{ color: {ACCENT}; font-family: monospace; }}
+QPushButton#keybind {{
+    background: #1c1e20; border: 1px solid #45484d; border-bottom-width: 3px; border-radius: 6px;
+    padding: 5px 12px; color: #e8eaec; font-weight: 600;
+}}
+QPushButton#keybind:hover {{ border-color: {ACCENT}; }}
+QPushButton#keybind[capturing="true"] {{ border-color: {ACCENT}; color: {ACCENT}; background: #22302a; }}
+QPushButton#keybind[conflict="true"] {{ border-color: #e05555; color: #ff8a8a; }}
+QPushButton#keybind:disabled {{ color: #9a9ea3; }}
 QListWidget {{ background: #1c1d1f; border: 1px solid #3a3d41; border-radius: 6px; }}
 QScrollArea, #page {{ background: transparent; border: none; }}
 QScrollBar:vertical {{ background: transparent; width: 8px; }}
@@ -560,3 +569,67 @@ class IconPicker(QDialog):
             self._choose(save_user_icon(Path(path).read_bytes(), Path(path).suffix))
         except (OSError, ValueError) as e:
             QMessageBox.warning(self, T("Elegir imagen"), T("No se pudo usar la imagen: {}").format(e))
+
+
+class KeyButton(QPushButton):
+    """Botón de tecla al estilo de los menús de controles de los juegos: clic,
+    pulsar la tecla y listo. Esc cancela; Retroceso o Supr quitan la tecla."""
+
+    changed = Signal(str)   # atajo en formato portal («CTRL+ALT+m», «F1»); "" = sin tecla
+    MODIFIERS = (Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt, Qt.Key_Meta, Qt.Key_AltGr, Qt.Key_Super_L,
+                 Qt.Key_Super_R)
+
+    def __init__(self, trigger=""):
+        super().__init__(objectName="keybind")
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumWidth(150)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.capturing = False
+        self.trigger = trigger
+        self.clicked.connect(self._start)
+        self.set_trigger(trigger)
+
+    def set_trigger(self, trigger, shown=None):
+        """shown: texto a mostrar si no es el del atajo (p. ej. el que asignó el sistema)."""
+        self.trigger = trigger
+        self.setText(shown if shown is not None else (pretty(trigger) if trigger else "—"))
+
+    def _flag(self, name, on):
+        if self.property(name) != on:
+            self.setProperty(name, on)
+            self.style().unpolish(self)
+            self.style().polish(self)
+
+    def set_conflict(self, on):
+        self._flag("conflict", on)
+
+    def _start(self):
+        self.capturing = True
+        self._flag("capturing", True)
+        self.setText(T("> Pulsa una tecla <"))
+        self.grabKeyboard()
+
+    def _stop(self):
+        self.capturing = False
+        self._flag("capturing", False)
+        self.releaseKeyboard()
+        self.set_trigger(self.trigger)
+
+    def keyPressEvent(self, e):
+        if not self.capturing:
+            return super().keyPressEvent(e)
+        key = e.key()
+        if key in self.MODIFIERS:
+            return
+        if key == Qt.Key_Escape:
+            return self._stop()
+        new = "" if key in (Qt.Key_Backspace, Qt.Key_Delete) else \
+            to_portal(QKeySequence(e.keyCombination()).toString())
+        self.trigger = new
+        self._stop()
+        self.changed.emit(new)
+
+    def focusOutEvent(self, e):
+        if self.capturing:
+            self._stop()
+        super().focusOutEvent(e)
