@@ -18,13 +18,26 @@ IS_LINUX = sys.platform.startswith("linux")
 # En Linux el micrófono virtual lo crea la app; en Windows es VB-Cable.
 MIC_NAME = "VoidOfVoices_Mic" if not IS_WINDOWS else "CABLE Output (VB-Audio)"
 
+
+
+def env_dir(var, default):
+    """Carpeta de una variable de entorno (XDG_CONFIG_HOME…). Vacía o relativa
+    se ignora, como pide la especificación XDG: con XDG_CONFIG_HOME="" la
+    configuración acababa en la carpeta desde donde se abrió la app."""
+    value = os.environ.get(var, "")
+    return Path(value) if os.path.isabs(value) else Path(default)
+
+
+XDG_CONFIG_HOME = env_dir("XDG_CONFIG_HOME", Path.home() / ".config")
+XDG_DATA_HOME = env_dir("XDG_DATA_HOME", Path.home() / ".local" / "share")
+
 if IS_WINDOWS:
-    _base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "VoidOfVoices"
+    _base = env_dir("APPDATA", Path.home() / "AppData" / "Roaming") / "VoidOfVoices"
     CONFIG_DIR = _base
     DATA_DIR = _base
 else:
-    CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "voidofvoices"
-    DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "voidofvoices"
+    CONFIG_DIR = XDG_CONFIG_HOME / "voidofvoices"
+    DATA_DIR = XDG_DATA_HOME / "voidofvoices"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 # Recursos (sonidos, icono): junto al paquete o dentro del ejecutable de PyInstaller.

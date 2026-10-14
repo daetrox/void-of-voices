@@ -19,7 +19,7 @@ import threading
 
 from PySide6.QtCore import QObject, Signal
 
-from . import APP_ID, IS_LINUX, IS_WINDOWS
+from . import APP_ID, IS_LINUX, IS_WINDOWS, XDG_CONFIG_HOME
 
 # Acciones generales: id, descripción (español, se traduce en la UI), atajo sugerido.
 # La UI añade una acción por voz («voice:Nombre») y por sonido («sound:id»).
@@ -72,8 +72,7 @@ class HyprlandBinds(QObject):
 
     def __init__(self, applied=None, parent=None):
         super().__init__(parent)
-        cfg = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
-        self.lua = os.path.exists(os.path.join(cfg, "hypr", "hyprland.lua"))
+        self.lua = (XDG_CONFIG_HOME / "hypr" / "hyprland.lua").exists()
         # trigger → id de los binds que puso la app (se guarda en la config por si
         # la app se cerró sin quitarlos).
         self.applied = dict(applied or {})
