@@ -1,5 +1,6 @@
 """Soundboard: biblioteca de sonidos y mezclador que se suma al micrófono virtual."""
 
+import hashlib
 import json
 import shutil
 import threading
@@ -9,7 +10,7 @@ from pathlib import Path
 import numpy as np
 from pedalboard.io import AudioFile
 
-from . import DATA_DIR, RESOURCE_DIR
+from . import DATA_DIR, ICON_IMAGE_EXTS, MAX_ICON_BYTES, RESOURCE_DIR, USER_ICON_DIR
 from .dsp import SAMPLE_RATE
 
 BUILTIN_DIR = RESOURCE_DIR / "sounds"
@@ -47,7 +48,18 @@ def import_file(src):
     dst = USER_DIR / f"{sid}{src.suffix.lower()}"
     shutil.copy2(src, dst)
     return {"id": f"user:{sid}", "path": str(dst), "name": src.stem[:40],
-            "icon": "🔊", "category": "Mis sonidos", "builtin": False}
+            "icon": "audio-lines", "category": "Mis sonidos", "builtin": False}
+
+
+def save_user_icon(data, ext):
+    """Guarda una imagen de icono en la biblioteca y devuelve «img:archivo»."""
+    ext = ext.lower()
+    if ext not in ICON_IMAGE_EXTS or len(data) > MAX_ICON_BYTES:
+        raise ValueError(ext if ext not in ICON_IMAGE_EXTS else "> 2 MB")
+    USER_ICON_DIR.mkdir(parents=True, exist_ok=True)
+    name = hashlib.sha1(data).hexdigest()[:12] + ext
+    (USER_ICON_DIR / name).write_bytes(data)
+    return f"img:{name}"
 
 
 def delete_user_file(entry):

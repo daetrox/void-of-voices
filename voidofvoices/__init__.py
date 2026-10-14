@@ -30,6 +30,14 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 # Recursos (sonidos, icono): junto al paquete o dentro del ejecutable de PyInstaller.
 RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 ICON_PATH = RESOURCE_DIR / "voidofvoices" / "assets" / "icon.svg"
+# Emojis propios: Qt no dibuja el Noto Color Emoji COLRv1 de Fedora y otras distros
+# recientes (los iconos salían en blanco).
+EMOJI_FONT = RESOURCE_DIR / "voidofvoices" / "assets" / "Twemoji.Mozilla.ttf"
+# Iconos: «nombre» = SVG de Lucide incluido; «img:archivo» = imagen del usuario; si no, emoji.
+ICON_DIR = RESOURCE_DIR / "voidofvoices" / "assets" / "icons"
+USER_ICON_DIR = DATA_DIR / "icons"
+ICON_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif")
+MAX_ICON_BYTES = 2 * 1024 * 1024
 
 # Nombres anteriores de la app (Vozcándalo, Audiomodulator): (carpeta de config, carpeta de datos).
 if IS_WINDOWS:

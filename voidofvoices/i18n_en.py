@@ -48,12 +48,12 @@ EN = {
     "＋ Guardar voz actual": "＋ Save current voice", "⬇ Importar…": "⬇ Import…", "⬆ Exportar…": "⬆ Export…",
     "Las voces cambian tono, timbre y efectos. La mejora de audio (ruido, compresor…) y el ecualizador se mantienen.":
         "Voices change pitch, timbre and effects. Audio cleanup (noise, compressor…) and the equalizer stay as they are.",
-    "Ajusta los controles a tu gusto y pulsa «＋ Guardar voz actual». Clic derecho sobre una voz propia para renombrarla o borrarla.":
-        "Tweak the controls and press “＋ Save current voice”. Right-click one of your voices to rename or delete it.",
+    "Ajusta los controles a tu gusto y pulsa «Guardar voz actual». Clic derecho sobre una voz propia para renombrarla o borrarla.":
+        "Tweak the controls and press “Save current voice”. Right-click one of your voices to rename or delete it.",
     "Renombrar…": "Rename…", "Exportar…": "Export…", "Renombrar": "Rename", "Nombre:": "Name:",
     "Borrar «{}»": "Delete “{}”", "Guardar voz": "Save voice", "Nombre de la voz:": "Voice name:",
     "Ya existe una voz del banco con ese nombre.": "There is already a bank voice with that name.",
-    "Primero guarda alguna voz con «＋ Guardar voz actual».": "First save a voice with “＋ Save current voice”.",
+    "Primero guarda alguna voz con «Guardar voz actual».": "First save a voice with “Save current voice”.",
     "Exportar voces": "Export voices", "Importar voces": "Import voices",
     "Elige las voces que quieres compartir:": "Choose the voices you want to share:",
     "Voces de Void of Voices": "Void of Voices voices",
@@ -72,8 +72,8 @@ EN = {
     "Buscar sonido…": "Search sound…", "Volumen de sonidos": "Sound volume",
     "Bajar mi voz al sonar": "Lower my voice while playing",
     "Oír los sonidos en mis auriculares": "Hear sounds on my headphones",
-    "Aún no has añadido sonidos: usa «＋ Añadir sonidos…» o arrastra archivos (WAV, MP3, OGG, FLAC).":
-        "You haven't added sounds yet: use “＋ Add sounds…” or drop files (WAV, MP3, OGG, FLAC).",
+    "Aún no has añadido sonidos: usa «Añadir sonidos…» o arrastra archivos (WAV, MP3, OGG, FLAC).":
+        "You haven't added sounds yet: use “Add sounds…” or drop files (WAV, MP3, OGG, FLAC).",
     "Vista previa en tus altavoces — enciende el modulador para enviarlo al micrófono":
         "Preview on your speakers — turn the changer on to send it to the microphone",
     "No se pudo reproducir «{}»:\n{}": "Couldn't play “{}”:\n{}",
@@ -139,7 +139,7 @@ EN = {
     "Ajustes guardados": "Settings saved",
 
     # --- atajos (acciones)
-    "Voz normal ↔ última voz": "Normal voice ↔ last voice",
+    "Voz normal ⇄ última voz": "Normal voice ⇄ last voice",
     "Voz rápida 1": "Quick voice 1", "Voz rápida 2": "Quick voice 2", "Voz rápida 3": "Quick voice 3",
     "Voz rápida 4": "Quick voice 4", "Voz rápida 5": "Quick voice 5",
     "Silenciar / activar micrófono": "Mute / unmute microphone", "Pulsar para hablar (mantener)": "Push to talk (hold)",
@@ -171,4 +171,38 @@ EN = {
     "Robot": "Robot", "Androide": "Android", "Alien": "Alien", "Monstruo": "Monster", "Arcade 8-bit": "8-bit arcade",
     "Ambientes": "Places", "Radio": "Radio", "Teléfono": "Phone", "Walkie-talkie": "Walkie-talkie",
     "Megáfono": "Megaphone", "Cueva": "Cave", "Catedral": "Cathedral", "Estadio": "Stadium",
+    "Elegir icono": "Choose icon", "Iconos": "Icons", "Emoji": "Emoji", "Imagen": "Image",
+    "Buscar icono en inglés: dog, music, fire, laugh…": "Search icons: dog, music, fire, laugh…",
+    "…o escribe o pega cualquier emoji": "…or type or paste any emoji", "Usar": "Use",
+    "Una imagen tuya: PNG, JPG, SVG, WebP o GIF de hasta 2 MB.": "Your own image: PNG, JPG, SVG, WebP or GIF up to 2 MB.",
+    "Elegir imagen…": "Choose image…", "Elegir imagen": "Choose image", "Imágenes": "Images",
+    "No se pudo usar la imagen: {}": "Couldn't use the image: {}", "Cancelar": "Cancel",
+    
+    "Restablecer teclas": "Reset keys",
+    "General": "General",
+    "Las que salen en el selector de voces y en el menú de la bandeja.": "The ones shown in the voice picker and the tray menu.",
+    "Atajos globales activos. Las teclas en rojo ya las usa Hyprland u otra acción: pasa el ratón por encima para saber cuál.":
+        "Global shortcuts active. Keys in red are already used by Hyprland or another action: hover to see which.",
+    "Hyprland ya usa esta tecla para otra cosa: elige otra.": "Hyprland already uses this key for something else: pick another.",
+    "> Pulsa una tecla <": "> Press a key <",
+    "Atajos": "Shortcuts", "Tus atajos": "Your shortcuts", "Atajos generales": "General shortcuts",
+    "Elige una voz o un sonido y la tecla que lo activa; funcionan aunque estés dentro de un juego. Haz clic en la tecla y pulsa la nueva (también combinaciones como Shift+1 o Alt+F1); Retroceso la quita y Esc cancela.":
+        "Pick a voice or a sound and the key that triggers it; they work even inside a game. Click the key and press the new one (combinations like Shift+1 or Alt+F1 too); Backspace clears it, Esc cancels.",
+    "＋ Añadir atajo": "＋ Add shortcut", "(ya no existe)": "(no longer exists)",
+    "Esta tecla ya la usa otro atajo.": "Another shortcut already uses this key.",
+    "¿Quitar tus atajos y volver a las teclas predeterminadas?": "Remove your shortcuts and go back to the default keys?",
+    "Panel": "Panel", "Voz conf": "Voice setup", "Sonidos rápidos": "Quick sounds",
+    "Clic para usar; ⋮ para cambiar la casilla.": "Click to use; ⋮ to change the slot.",
+    "Cambiar casilla": "Change slot", "Vacío": "Empty", "Vaciar casilla": "Clear slot",
+    "Personalizadas": "Custom", "Personalizados": "Custom",
+    "En «Voz conf» ajusta los controles y pulsa «Guardar como voz…». Clic derecho sobre una voz propia para renombrarla, cambiar su icono o borrarla.":
+        "In “Voice setup” adjust the controls and press “Save as voice…”. Right-click one of your voices to rename it, change its icon or delete it.",
+    "Crear una voz en «Voz conf»…": "Create a voice in “Voice setup”…",
+    "Guardar voz": "Save voice", "Nombre e icono de la voz:": "Voice name and icon:", "Mi voz": "My voice",
+    "Guardar": "Save", "＋ Guardar como voz…": "＋ Save as voice…",
+    "Ajusta tu voz y guárdala para usarla cuando quieras.": "Tune your voice and save it to use it whenever you want.",
+    "Opciones de voz": "Voice options", "Normal /\núltima voz": "Normal /\nlast voice",
+    "Selector\nde voces": "Voice\npicker", "Panel de\nsonidos": "Sound\npanel",
+    "ENTRADA": "INPUT", "SALIDA": "OUTPUT",
+    "Clic para usar · Clic derecho o ⋮ para cambiar la casilla.": "Click to use · Right-click or ⋮ to change the slot.",
 }

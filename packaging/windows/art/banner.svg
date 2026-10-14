@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 164 314" width="164" height="314">
+  <defs>
+    <linearGradient id="bgv" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d2023"/>
+      <stop offset="1" stop-color="#0d0e0f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.36" r="0.55">
+      <stop offset="0" stop-color="#5ef0a0" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#5ef0a0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="164" height="314" fill="url(#bgv)"/>
+  <rect width="164" height="314" fill="url(#glow)"/>
+  <g fill="#ffffff" opacity="0.5">
+    <circle cx="20" cy="24" r="0.9"/><circle cx="141" cy="40" r="0.7"/><circle cx="118" cy="14" r="0.6"/>
+    <circle cx="35" cy="200" r="0.6"/><circle cx="150" cy="180" r="0.9"/><circle cx="12" cy="130" r="0.7"/>
+  </g>
+  <image x="32" y="56" width="100" height="100" xlink:href="../../../voidofvoices/assets/icon.svg"/>
+  <text x="82" y="190" text-anchor="middle" font-family="Inter, Noto Sans, Segoe UI, sans-serif" font-size="17" font-weight="700" fill="#f2f4f5">Void of Voices</text>
+  <text x="82" y="210" text-anchor="middle" font-family="Inter, Noto Sans, Segoe UI, sans-serif" font-size="9.5" fill="#5ef0a0">cambia tu voz en tiempo real</text>
+  <g fill="none" stroke="#5ef0a0" stroke-linecap="round">
+    <path d="M0 268 Q20 252 41 268 T82 268 T123 268 T164 268" stroke-width="2" opacity="0.45"/>
+    <path d="M0 280 Q20 266 41 280 T82 280 T123 280 T164 280" stroke-width="1.5" opacity="0.25"/>
+  </g>
+</svg>

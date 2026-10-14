@@ -1,21 +1,31 @@
 """Estilo y controles reutilizables de la interfaz."""
 
 import math
+from functools import lru_cache
+from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import (QColor, QFont, QIcon, QLinearGradient, QPainter, QPalette, QPen,
+from PySide6.QtCore import QByteArray, QEvent, QObject, QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import (QColor, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPalette, QPen,
                            QPixmap, QRadialGradient)
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
-    QAbstractButton, QCheckBox, QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QLabel,
-    QListWidget, QListWidgetItem, QScrollArea, QSizePolicy, QSlider, QToolButton,
-    QVBoxLayout, QWidget,
+    QAbstractButton, QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+    QLabel, QLayout,
+    QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
+    QSlider, QTabWidget, QToolButton, QVBoxLayout, QWidget,
 )
 
+from . import ICON_DIR, USER_ICON_DIR
+from .hotkeys import pretty, to_portal
 from .i18n import T
+
+# Prefijos de los textos de botones → icono SVG (los textos los conservan para traducirse).
+PREFIX_ICONS = {"⇄": "arrow-left-right", "🪟": "app-window", "＋": "plus", "⬇": "download",
+                "⬆": "upload", "📦": "package", "⏹": "square-stop", "⏻": "power", "🔇": "mic-off"}
 
 ACCENT = "#5ef0a0"
 STYLE = f"""
-* {{ font-family: "Inter", "Noto Sans", sans-serif; }}
+* {{ font-family: "Inter", "Noto Sans", "Twemoji Mozilla", sans-serif; }}
 QMainWindow, #root, #window {{ background: #232527; }}
 QToolButton#voiceSmall {{
     background: #2a2c2f; border: 1px solid #3f6e57; border-radius: 8px;
@@ -33,6 +43,23 @@ QPushButton#pill[warn="true"]:checked {{ background: #5e2f2f; border-color: #f07
 #banner {{ background: #3a3220; border: 1px solid #806a2e; border-radius: 8px; }}
 #banner QLabel {{ color: #f3e3b5; }}
 #key {{ color: {ACCENT}; font-family: monospace; }}
+QToolButton#option {{
+    background: #24262a; border: 1px solid #3f6e57; border-radius: 10px; padding: 6px; font-size: 12px;
+}}
+QToolButton#option:hover {{ border-color: {ACCENT}; background: #22302a; }}
+QToolButton#cardToggle {{ background: transparent; border: none; color: {ACCENT}; font-size: 14px; font-weight: 600; }}
+#vsep {{ background: #3f4246; max-width: 1px; }}
+#meterLabel {{ font-size: 13px; font-weight: 700; letter-spacing: 1px; }}
+QToolButton#deckDots {{ background: transparent; border: none; padding: 3px; margin: 2px; }}
+QToolButton#deckDots:hover {{ background: #3a3c40; border-radius: 5px; }}
+QPushButton#keybind {{
+    background: #1c1e20; border: 1px solid #45484d; border-bottom-width: 3px; border-radius: 6px;
+    padding: 5px 12px; color: #e8eaec; font-weight: 600;
+}}
+QPushButton#keybind:hover {{ border-color: {ACCENT}; }}
+QPushButton#keybind[capturing="true"] {{ border-color: {ACCENT}; color: {ACCENT}; background: #22302a; }}
+QPushButton#keybind[conflict="true"] {{ border-color: #e05555; color: #ff8a8a; }}
+QPushButton#keybind:disabled {{ color: #9a9ea3; }}
 QListWidget {{ background: #1c1d1f; border: 1px solid #3a3d41; border-radius: 6px; }}
 QScrollArea, #page {{ background: transparent; border: none; }}
 QScrollBar:vertical {{ background: transparent; width: 8px; }}
@@ -140,18 +167,43 @@ SLIDERS = {
 
 # ------------------------------------------------------------- widgets
 
-def glyph_icon(text, size=28):
-    """Icono a partir de un carácter/emoji, para no depender de ficheros."""
+@lru_cache(maxsize=None)
+def glyph_icon(text, size=28, color="#d9dcdf"):
+    """Icono SVG de Lucide si ``text`` es su nombre («mic»), imagen del usuario
+    si es «img:archivo»; si no, el carácter/emoji."""
     pm = QPixmap(size * 2, size * 2)
     pm.fill(Qt.transparent)
     p = QPainter(pm)
+    if text.startswith("img:"):
+        img = QPixmap(str(USER_ICON_DIR / Path(text[4:]).name))
+        if not img.isNull():
+            img = img.scaled(int(size * 1.6), int(size * 1.6), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            p.drawPixmap((pm.width() - img.width()) // 2, (pm.height() - img.height()) // 2, img)
+        p.end()
+        return QIcon(pm)
+    svg = ICON_DIR / f"{text}.svg"
+    if text and "/" not in text and svg.is_file():
+        data = svg.read_bytes().replace(b"currentColor", color.encode())
+        QSvgRenderer(QByteArray(data)).render(p, QRectF(size * 0.25, size * 0.25, size * 1.5, size * 1.5))
+        p.end()
+        return QIcon(pm)
     f = QFont()
+    f.setFamilies([f.family(), "Twemoji Mozilla"])
     f.setPixelSize(int(size * 1.5))
     p.setFont(f)
-    p.setPen(QColor("#d9dcdf"))
+    p.setPen(QColor(color))
     p.drawText(pm.rect(), Qt.AlignCenter, text)
     p.end()
     return QIcon(pm)
+
+
+def iconize(button, size=16):
+    """«⏹ Detener todo» → icono SVG + «Detener todo»."""
+    head, _, rest = button.text().partition(" ")
+    if head in PREFIX_ICONS and rest:
+        button.setText(rest)
+        button.setIcon(glyph_icon(PREFIX_ICONS[head], size))
+    return button
 
 
 class RoundToggle(QAbstractButton):
@@ -194,11 +246,9 @@ class RoundToggle(QAbstractButton):
 
         on_text, off_text, on_sub, off_sub = self.texts
         if self.glyph:
-            f = QFont(self.font())
-            f.setPixelSize(int(40 * k))
-            p.setFont(f)
-            p.setPen(QColor("#f0f2f4") if on else QColor("#9a9ea3"))
-            p.drawText(QRectF(r.left(), c.y() - 62 * k, r.width(), 44 * k), Qt.AlignCenter, self.glyph)
+            side = int(44 * k)
+            icon = glyph_icon(self.glyph, side, "#f0f2f4" if on else "#9a9ea3")
+            p.drawPixmap(int(c.x() - side / 2), int(c.y() - 62 * k), icon.pixmap(side, side))
         else:
             led = QRectF(0, 0, 18 * k, 18 * k)
             led.moveCenter(c - QPointF(0, 34 * k))
@@ -227,37 +277,44 @@ class RoundToggle(QAbstractButton):
 
 
 class LevelMeter(QWidget):
-    """Dos barras verticales (entrada/salida) con caída suave."""
+    """Medidor horizontal por segmentos con escala de -60 a 0 dBFS y caída suave."""
+
+    SEGMENTS = 40
+    TICKS = (-60, -48, -36, -24, -12, 0)
 
     def __init__(self):
         super().__init__()
-        self.setFixedSize(60, 150)
-        self.levels = [0.0, 0.0]
+        self.setMinimumSize(150, 40)
+        self.level = 0.0
 
-    def set_levels(self, a, b):
-        def db(v):  # -60..0 dBFS → 0..1
-            return max(0.0, min(1.0, (20 * math.log10(v + 1e-9) + 60) / 60))
-        new = [db(a), db(b)]
-        self.levels = [max(n, o - 0.04) for n, o in zip(new, self.levels)]
+    def set_level(self, v):
+        new = max(0.0, min(1.0, (20 * math.log10(v + 1e-9) + 60) / 60))
+        self.level = max(new, self.level - 0.04)
         self.update()
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        h = self.height() - 22
-        for i, lv in enumerate(self.levels):
-            x = 12 + i * 22
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor("#34373b"))
-            p.drawRoundedRect(QRectF(x, 0, 12, h), 3, 3)
-            fill = h * lv
-            p.setBrush(QColor(ACCENT) if lv < 0.9 else QColor("#f0c05e"))
-            p.drawRoundedRect(QRectF(x, h - fill, 12, fill), 3, 3)
-        p.setPen(QColor(ACCENT))
+        w, bar = self.width(), 16
+        seg = w / self.SEGMENTS
+        lit = round(self.level * self.SEGMENTS)
+        p.setPen(Qt.NoPen)
+        for i in range(self.SEGMENTS):
+            frac = (i + 1) / self.SEGMENTS
+            color = ACCENT if frac <= 0.8 else "#f0c05e" if frac <= 0.95 else "#f05e5e"
+            p.setBrush(QColor(color) if i < lit else QColor("#3a3d41"))
+            p.drawRoundedRect(QRectF(i * seg + 1, 0, seg - 3, bar), 2, 2)
         f = QFont(self.font())
-        f.setPointSize(8)
+        f.setPointSizeF(7.5)
         p.setFont(f)
-        p.drawText(QRectF(0, h + 4, self.width(), 16), Qt.AlignCenter, "IN   OUT")
+        p.setPen(QColor("#8a8e93"))
+        for db in self.TICKS:
+            x = (db + 60) / 60 * (w - 1)
+            p.drawLine(QPointF(x, bar + 3), QPointF(x, bar + 6))
+            label = f"{db} dB" if db == 0 else str(db)
+            align = Qt.AlignLeft if db == -60 else Qt.AlignRight if db == 0 else Qt.AlignHCenter
+            rect = QRectF(x - (0 if db == -60 else 44 if db == 0 else 22), bar + 7, 44, 14)
+            p.drawText(rect, align, label)
 
 
 class ParamSlider(QWidget):
@@ -415,3 +472,362 @@ def key_capture(parent, title, text):
     if dlg.exec() == QDialog.Accepted:
         return edit.keySequence().toString()
     return ""
+
+
+class IconPicker(QDialog):
+    """Elige el icono de un sonido: SVG de Lucide, emoji o imagen propia.
+    Tras exec(), ``value`` tiene el texto del icono (ver glyph_icon)."""
+
+    EMOJIS = ["🔊", "🎵", "🎶", "🎤", "🎧", "📢", "📣", "🔔", "🎺", "🎸", "🥁", "🎹", "👏", "🙌",
+              "😂", "🤣", "😮", "😱", "😭", "😡", "😈", "👻", "🤖", "👽", "💀", "🔥", "💥", "⚡",
+              "💣", "🎉", "🎊", "🏆", "👑", "💰", "💸", "❤️", "💔", "👍", "👎", "👋", "🤘", "✨",
+              "⭐", "💫", "🐶", "🐱", "🐔", "🦆", "🐸", "🐍", "🦁", "🐮", "🚨", "🚀", "🚗", "🚓",
+              "⏰", "☎️", "💬", "❓", "❗", "💯", "🎮", "🕹️", "👾", "🍕", "🍺", "💩", "🤡", "🗿"]
+
+    # Sin búsqueda se muestran primero estos (los útiles para sonidos).
+    SUGGESTED = ("audio-lines music music-2 mic megaphone bell bell-ring drum guitar piano volume-2 laugh "
+                 "smile frown angry annoyed ghost skull bot flame zap bomb siren party-popper trophy crown "
+                 "gem coins banknote heart heart-crack thumbs-up thumbs-down hand hand-metal sparkles star "
+                 "rocket car ambulance phone phone-call clock alarm-clock door-open dog cat bird fish rabbit "
+                 "squirrel rat bug snail turtle egg pizza beer coffee cake gamepad-2 joystick swords sword "
+                 "shield target crosshair gift").split()
+
+    def __init__(self, parent, current=""):
+        super().__init__(parent)
+        self.setWindowTitle(T("Elegir icono"))
+        self.resize(600, 500)
+        self.value = None
+        v = QVBoxLayout(self)
+        tabs = QTabWidget()
+        v.addWidget(tabs)
+
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        self.search = QLineEdit(placeholderText=T("Buscar icono en inglés: dog, music, fire, laugh…"))
+        lay.addWidget(self.search)
+        self.grid = self._grid()
+        lay.addWidget(self.grid)
+        self._names = sorted(p.stem for p in ICON_DIR.glob("*.svg"))
+        self.search.textChanged.connect(self._filter)
+        self._filter("")
+        tabs.addTab(page, T("Iconos"))
+
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        grid = self._grid()
+        for e in self.EMOJIS:
+            grid.addItem(self._item(e))
+        lay.addWidget(grid)
+        row = QHBoxLayout()
+        self.emoji = QLineEdit(placeholderText=T("…o escribe o pega cualquier emoji"))
+        use = QPushButton(T("Usar"), objectName="ghost")
+        use.clicked.connect(lambda: self.emoji.text().strip() and self._choose(self.emoji.text().strip()[:8]))
+        row.addWidget(self.emoji)
+        row.addWidget(use)
+        lay.addLayout(row)
+        tabs.addTab(page, T("Emoji"))
+
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.addWidget(QLabel(T("Una imagen tuya: PNG, JPG, SVG, WebP o GIF de hasta 2 MB.")))
+        pick = QPushButton(T("Elegir imagen…"), objectName="ghost")
+        pick.clicked.connect(self._pick_image)
+        lay.addWidget(pick, 0, Qt.AlignLeft)
+        lay.addStretch()
+        tabs.addTab(page, T("Imagen"))
+
+        bb = QDialogButtonBox(QDialogButtonBox.Cancel)
+        bb.button(QDialogButtonBox.Cancel).setText(T("Cancelar"))
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+        if current.startswith("img:"):
+            tabs.setCurrentIndex(2)
+        elif current and not (ICON_DIR / f"{current}.svg").is_file():
+            tabs.setCurrentIndex(1)
+
+    def _grid(self):
+        lw = QListWidget()
+        lw.setViewMode(QListWidget.IconMode)
+        lw.setIconSize(QSize(28, 28))
+        lw.setGridSize(QSize(50, 50))
+        lw.setResizeMode(QListWidget.Adjust)
+        lw.setMovement(QListWidget.Static)
+        lw.setUniformItemSizes(True)
+        lw.itemClicked.connect(lambda it: self._choose(it.data(Qt.UserRole)))
+        return lw
+
+    def _item(self, icon):
+        it = QListWidgetItem(glyph_icon(icon, 24), "")
+        it.setToolTip(icon)
+        it.setData(Qt.UserRole, icon)
+        return it
+
+    def _filter(self, text):
+        self.grid.clear()
+        words = text.lower().split()
+        names = [n for n in self._names if all(w in n for w in words)]
+        if not words:
+            names = self.SUGGESTED + [n for n in names if n not in self.SUGGESTED]
+        # ponytail: solo los 400 primeros resultados; dibujar los 2.000+ iconos tarda segundos.
+        for name in names[:400]:
+            self.grid.addItem(self._item(name))
+
+    def _choose(self, value):
+        self.value = value
+        self.accept()
+
+    def _pick_image(self):
+        from .soundboard import save_user_icon
+        exts = " ".join(f"*{x}" for x in (".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif"))
+        path, _ = QFileDialog.getOpenFileName(self, T("Elegir imagen"), str(Path.home()), f"{T('Imágenes')} ({exts})")
+        if not path:
+            return
+        try:
+            self._choose(save_user_icon(Path(path).read_bytes(), Path(path).suffix))
+        except (OSError, ValueError) as e:
+            QMessageBox.warning(self, T("Elegir imagen"), T("No se pudo usar la imagen: {}").format(e))
+
+
+class KeyButton(QPushButton):
+    """Botón de tecla al estilo de los menús de controles de los juegos: clic,
+    pulsar la tecla y listo. Esc cancela; Retroceso o Supr quitan la tecla."""
+
+    changed = Signal(str)   # atajo en formato portal («CTRL+ALT+m», «F1»); "" = sin tecla
+    MODIFIERS = (Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt, Qt.Key_Meta, Qt.Key_AltGr, Qt.Key_Super_L,
+                 Qt.Key_Super_R)
+
+    def __init__(self, trigger=""):
+        super().__init__(objectName="keybind")
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumWidth(150)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.capturing = False
+        self.trigger = trigger
+        self.clicked.connect(self._start)
+        self.set_trigger(trigger)
+
+    def set_trigger(self, trigger, shown=None):
+        """shown: texto a mostrar si no es el del atajo (p. ej. el que asignó el sistema)."""
+        self.trigger = trigger
+        self.setText(shown if shown is not None else (pretty(trigger) if trigger else "—"))
+
+    def _flag(self, name, on):
+        if self.property(name) != on:
+            self.setProperty(name, on)
+            self.style().unpolish(self)
+            self.style().polish(self)
+
+    def set_conflict(self, on):
+        self._flag("conflict", on)
+
+    def _start(self):
+        self.capturing = True
+        self._flag("capturing", True)
+        self.setText(T("> Pulsa una tecla <"))
+        self.grabKeyboard()
+
+    def _stop(self):
+        self.capturing = False
+        self._flag("capturing", False)
+        self.releaseKeyboard()
+        self.set_trigger(self.trigger)
+
+    def keyPressEvent(self, e):
+        if not self.capturing:
+            return super().keyPressEvent(e)
+        key = e.key()
+        if key in self.MODIFIERS:
+            return
+        if key == Qt.Key_Escape:
+            return self._stop()
+        new = "" if key in (Qt.Key_Backspace, Qt.Key_Delete) else \
+            to_portal(QKeySequence(e.keyCombination()).toString())
+        digit = self._physical_digit(e)
+        if new and digit and e.modifiers() & Qt.ShiftModifier:
+            # Shift+1 llega como «!» (o «"», «·»… según la distribución): se usa la tecla física.
+            new = "+".join(new.split("+")[:-1] + [digit])
+        self.trigger = new
+        self._stop()
+        self.changed.emit(new)
+
+    @staticmethod
+    def _physical_digit(e):
+        """Número de la fila superior pulsado, sea cual sea la distribución del teclado."""
+        import sys
+        if sys.platform == "win32":
+            vk = e.nativeVirtualKey()          # VK_0..VK_9 no dependen de Shift
+            return chr(vk) if 0x30 <= vk <= 0x39 else ""
+        sc = e.nativeScanCode()                # keycode de X11/Wayland: 10..19 = 1..0
+        # ponytail: solo la fila de números; otras teclas con Shift quedan como las da Qt.
+        return "1234567890"[sc - 10] if 10 <= sc <= 19 else ""
+
+    def focusOutEvent(self, e):
+        if self.capturing:
+            self._stop()
+        super().focusOutEvent(e)
+
+
+class SaveVoiceDialog(QDialog):
+    """Nombre e icono para guardar los ajustes actuales como una voz propia."""
+
+    def __init__(self, parent, name="", icon="star"):
+        super().__init__(parent)
+        self.setWindowTitle(T("Guardar voz"))
+        self.icon = icon
+        v = QVBoxLayout(self)
+        v.addWidget(QLabel(T("Nombre e icono de la voz:")))
+        row = QHBoxLayout()
+        self.icon_btn = QToolButton(objectName="voice")
+        self.icon_btn.setIconSize(QSize(30, 30))
+        self.icon_btn.setFixedSize(56, 56)
+        self.icon_btn.setToolTip(T("Elegir icono"))
+        self.icon_btn.clicked.connect(self._pick)
+        row.addWidget(self.icon_btn)
+        self.name = QLineEdit(name, placeholderText=T("Mi voz"))
+        self.name.setMaxLength(40)
+        row.addWidget(self.name, 1)
+        v.addLayout(row)
+        bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        bb.button(QDialogButtonBox.Save).setText(T("Guardar"))
+        bb.button(QDialogButtonBox.Cancel).setText(T("Cancelar"))
+        bb.accepted.connect(lambda: self.name.text().strip() and self.accept())
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+        self._show_icon()
+        self.name.setFocus()
+
+    def _show_icon(self):
+        self.icon_btn.setIcon(glyph_icon(self.icon, 30, ACCENT))
+
+    def _pick(self):
+        picker = IconPicker(self, self.icon)
+        if picker.exec() and picker.value:
+            self.icon = picker.value
+            self._show_icon()
+
+
+class FlowRow(QWidget):
+    """Fila de tarjetas que pasa a la línea siguiente las que no caben.
+    Las de ``stretch`` (índices) se estiran para llenar su línea."""
+
+    def __init__(self, widgets, stretch=(), spacing=14):
+        super().__init__()
+        self.items, self.stretch, self.spacing = list(widgets), set(stretch), spacing
+        self.v = QVBoxLayout(self)
+        self.v.setContentsMargins(0, 0, 0, 0)
+        self.v.setSpacing(spacing)
+        self.v.setSizeConstraint(QLayout.SetNoConstraint)   # el ancho mínimo lo da minimumSizeHint
+        self._rows = None
+        self._apply([list(range(len(self.items)))])
+
+    def _rows_for(self, width):
+        rows, cur, used = [], [], 0
+        for i, w in enumerate(self.items):
+            need = w.sizeHint().width()
+            if cur and used + self.spacing + need > width:
+                rows.append(cur)
+                cur, used = [], 0
+            used += (self.spacing if cur else 0) + need
+            cur.append(i)
+        return rows + [cur] if cur else rows
+
+    def _apply(self, rows):
+        self._rows = rows
+        while self.v.count():
+            lay = self.v.takeAt(0).layout()
+            while lay and lay.count():
+                lay.takeAt(0)
+        for row in rows:
+            h = QHBoxLayout()
+            h.setSpacing(self.spacing)
+            for i in row:
+                h.addWidget(self.items[i], 1 if i in self.stretch else 0)
+            if not self.stretch & set(row):
+                h.addStretch()
+            self.v.addLayout(h)
+        self.updateGeometry()
+
+    def resizeEvent(self, e):
+        rows = self._rows_for(e.size().width())
+        if rows != self._rows:
+            self._apply(rows)
+        super().resizeEvent(e)
+
+    def minimumSizeHint(self):
+        return QSize(max(w.minimumSizeHint().width() for w in self.items), self.v.minimumSize().height())
+
+    def sizeHint(self):
+        return QSize(super().sizeHint().width(), self.v.sizeHint().height())
+
+
+class ReflowGrid(QWidget):
+    """Rejilla de casillas con tantas columnas como quepan (hasta ``max_cols``);
+    las filas se reparten la altura disponible."""
+
+    def __init__(self, cell_width, max_cols=6, spacing=8):
+        super().__init__()
+        self.cell_width, self.max_cols, self.spacing = cell_width, max_cols, spacing
+        self.g = QGridLayout(self)
+        self.g.setContentsMargins(0, 0, 0, 0)
+        self.g.setSpacing(spacing)
+        self.g.setSizeConstraint(QLayout.SetNoConstraint)
+        self.cells, self.cols = [], 0
+
+    def set_widgets(self, widgets):
+        for w in self.cells:
+            w.deleteLater()
+        self.cells = list(widgets)
+        for w in self.cells:
+            w.setParent(self)
+            w.show()
+        self.cols = 0
+        self._place(self.width())
+
+    def _place(self, width):
+        cols = max(1, min(self.max_cols, (width + self.spacing) // (self.cell_width + self.spacing)))
+        if cols == self.cols:
+            return
+        self.cols = cols
+        while self.g.count():
+            self.g.takeAt(0)
+        for i, w in enumerate(self.cells):
+            self.g.addWidget(w, i // cols, i % cols)
+        for c in range(self.max_cols):
+            self.g.setColumnStretch(c, 1 if c < cols else 0)
+        for r in range(len(self.cells)):
+            self.g.setRowStretch(r, 1 if r <= (len(self.cells) - 1) // cols else 0)
+        self.updateGeometry()
+
+    def resizeEvent(self, e):
+        self._place(e.size().width())
+        super().resizeEvent(e)
+
+    def minimumSizeHint(self):
+        return QSize(self.cell_width, self.g.minimumSize().height())
+
+
+class _TileScaler(QObject):
+    """Ajusta icono y letra de una casilla a su tamaño: en pantalla completa
+    las casillas crecen y con tamaños fijos se veían vacías."""
+
+    def eventFilter(self, obj, ev):
+        if ev.type() == QEvent.Resize:
+            w, h = obj.width(), obj.height()
+            side = int(max(26, min(h * 0.38, w * 0.3, 64)))
+            if obj.iconSize().width() != side:
+                obj.setIconSize(QSize(side, side))
+                obj.setIcon(glyph_icon(obj.property("glyph"), side, obj.property("glyphColor")))
+                obj.setStyleSheet(f"font-size: {int(max(13, min(h * 0.12, 19)))}px;")
+        return False
+
+
+_scaler = None
+
+
+def scale_with_size(button, glyph, color="#d9dcdf"):
+    """Hace que el icono (``glyph``) y el texto de ``button`` crezcan con él."""
+    global _scaler
+    _scaler = _scaler or _TileScaler()
+    button.setProperty("glyph", glyph)
+    button.setProperty("glyphColor", color)
+    button.installEventFilter(_scaler)

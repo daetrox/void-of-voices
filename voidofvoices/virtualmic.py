@@ -1,6 +1,6 @@
 """Micrófono virtual y enumeración de dispositivos vía pactl (PipeWire-Pulse)."""
 
-import json
+import os
 import subprocess
 
 from . import MIC_NAME
@@ -12,27 +12,33 @@ _LEGACY = ("vozcandalo_sink", "vozcandalo_mic", "audiomodulator_sink", "audiomod
 
 
 def _pactl(*args):
-    return subprocess.run(["pactl", *args], capture_output=True, text=True, check=True).stdout
+    # LC_ALL=C: claves «Name:»/«Description:» en inglés sea cual sea el idioma del sistema.
+    return subprocess.run(["pactl", *args], capture_output=True, text=True, encoding="utf-8",
+                          check=True, env={**os.environ, "LC_ALL": "C"}).stdout
+
+
+def _list(kind):
+    """[(name, description)] leyendo la salida de texto: con «-f json», pactl
+    devuelve «(null)» en las descripciones con acentos («Estéreo analógico»)."""
+    out, name = [], None
+    for line in _pactl("list", kind).splitlines():
+        line = line.strip()
+        if line.startswith("Name: "):
+            name = line[6:]
+        elif line.startswith("Description: ") and name:
+            out.append((name, line[13:] or name))
+            name = None
+    return out
 
 
 def list_sources():
     """Devuelve [(name, description)] de micrófonos reales (sin monitores ni el nuestro)."""
-    out = []
-    for s in json.loads(_pactl("-f", "json", "list", "sources")):
-        name = s["name"]
-        if name.endswith(".monitor") or name in (SOURCE_NAME, SINK_NAME, *_LEGACY):
-            continue
-        out.append((name, s.get("description") or name))
-    return out
+    return [(n, d) for n, d in _list("sources")
+            if not n.endswith(".monitor") and n not in (SOURCE_NAME, SINK_NAME, *_LEGACY)]
 
 
 def list_sinks():
-    out = []
-    for s in json.loads(_pactl("-f", "json", "list", "sinks")):
-        if s["name"] == SINK_NAME:
-            continue
-        out.append((s["name"], s.get("description") or s["name"]))
-    return out
+    return [(n, d) for n, d in _list("sinks") if n != SINK_NAME]
 
 
 def default_source():

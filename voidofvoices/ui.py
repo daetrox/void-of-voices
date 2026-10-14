@@ -2,6 +2,7 @@
 
 import json
 import os
+from collections import Counter
 import sys
 import time
 from pathlib import Path
@@ -9,7 +10,7 @@ from pathlib import Path
 import threading
 
 from PySide6.QtCore import QObject, QProcess, QSize, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QDesktopServices, QFontDatabase, QIcon, QKeySequence, QShortcut
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
@@ -18,19 +19,57 @@ from PySide6.QtWidgets import (
     QToolButton, QVBoxLayout, QWidget,
 )
 
-from . import (APP_ID, APP_NAME, CONFIG_FILE, ICON_PATH, IS_WINDOWS, MIC_NAME, REPO_URL,
+from . import (APP_ID, APP_NAME, CONFIG_FILE, EMOJI_FONT, ICON_PATH, IS_WINDOWS, MIC_NAME, REPO_URL,
                __version__, devices, migrate_legacy, packs, system)
 from . import soundboard as sb
-from .dsp import (ENHANCE_PRESETS, EQ_BANDS, QUICK_VOICES, VOICE_BANK, VOICE_KEYS, Denoiser,
+from .dsp import (ENHANCE_PRESETS, EQ_BANDS, VOICE_BANK, VOICE_KEYS, Denoiser,
                   Params, all_voices)
 from .engine import AudioEngine, Preview
-from .hotkeys import ACTIONS, GlobalHotkeys, pretty, to_portal
+from .hotkeys import ACTIONS, GlobalHotkeys, HyprlandBinds, pretty, to_portal
 from .i18n import LANGUAGES, T, language, set_language
-from .widgets import (SLIDERS, STYLE, CheckListDialog, LevelMeter, ParamSlider, RoundToggle,
-                      card, dark_palette, glyph_icon, key_capture, scroll_page)
+from .widgets import (ACCENT, SLIDERS, STYLE, CheckListDialog, LevelMeter, ParamSlider, RoundToggle,
+                      FlowRow, IconPicker, KeyButton, ReflowGrid, SaveVoiceDialog, card, scale_with_size, dark_palette, glyph_icon, iconize, key_capture, scroll_page)
 from .windows import QuickVoicesWindow, SoundPanelWindow
 
-DEFAULT_SLOTS = ["Robot", "Demonio", "Femenina", "Ardilla", "Radio"]
+DECK_SIZE, DECK_COLS = 12, 6   # casillas de cada panel rápido (voces y sonidos): 6×2
+DEFAULT_SLOTS = ["Natural", "Robot", "Demonio", "Femenina", "Ardilla", "Radio", "Fantasma", "Gigante", "Alien"]
+IS_HYPRLAND = "hyprland" in os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+
+
+def load_hotkeys(cfg):
+    """(atajos generales, [[voz o sonido, tecla], …]) desde la config.
+
+    Convierte los formatos anteriores: «Voz rápida 1–5», atajos de sonidos y
+    una tecla por voz (sin los F1–F12 que ponía por defecto la versión previa)."""
+    general = {sid: t for sid, _, t in ACTIONS}
+    saved = dict(cfg.get("hotkeys", {}))
+    binds = [list(b) for b in cfg.get("bindings", []) if isinstance(b, (list, tuple)) and len(b) == 2]
+    if "bindings" not in cfg:
+        old_defaults = {f"voice:{n}": f"F{i}" for i, n in enumerate(list(all_voices())[:12], start=1)}
+        slots = cfg.get("voice_slots", DEFAULT_SLOTS)
+        for i in range(5):
+            t = saved.pop(f"voice_{i + 1}", None)
+            if t and i < len(slots) and slots[i]:
+                binds.append([f"voice:{slots[i]}", t])
+        for sid, m in cfg.get("sounds", {}).items():
+            if m.get("hotkey"):
+                binds.append([f"sound:{sid}", to_portal(m.pop("hotkey"))])
+        for k in [k for k in saved if k.startswith(("voice:", "sound:"))]:
+            t = saved.pop(k)
+            if t and old_defaults.get(k) != t and [k, t] not in binds:
+                binds.append([k, t])
+        if not binds:
+            binds = [[f"voice:{next(iter(all_voices()))}", ""]]   # una fila de ejemplo
+    general.update({k: v for k, v in saved.items() if k in general})
+    return general, binds
+
+
+def binding_target(sid):
+    """«voice:Robot#2» → «voice:Robot» (el número distingue filas con el mismo destino)."""
+    head, sep, tail = sid.rpartition("#")
+    return head if sep and tail.isdigit() else sid
+
+
 MY_SOUNDS = "Mis sonidos"
 
 
@@ -55,7 +94,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(QIcon(str(ICON_PATH)))
-        self.resize(1060, 700)
+        self.resize(1180, 860)
         self.setAcceptDrops(True)
         self.cfg = cfg
         self.engine = AudioEngine()
@@ -63,7 +102,10 @@ class MainWindow(QMainWindow):
         self.sliders = []          # (key, ParamSlider); key = ("eq", i) para bandas
         self.voice_buttons = []    # (owner, nombre, botón)
         self.custom_voices = {}    # nombre → dict de parámetros de voz
-        self.voice_slots = list(DEFAULT_SLOTS)
+        self.voice_slots = list(DEFAULT_SLOTS)   # panel rápido de voces (también bandeja y selector)
+        self.sound_slots = None                  # panel rápido de sonidos; None = los primeros
+        self.voice_icons = {}                    # voz propia → icono
+        self._autosave = QTimer(self, singleShot=True, interval=1500, timeout=self._save_config)
         self.current_voice = None
         self.last_voice = None     # (nombre o None, dict de parámetros de voz)
         self.params = Params()
@@ -72,9 +114,11 @@ class MainWindow(QMainWindow):
         self.sound_cfg = {}        # id → {name, icon, volume, loop, hotkey}
         self.user_sounds = []
         self.window_state = cfg.get("windows", {})
-        self.hotkey_triggers = {sid: trig for sid, _, trig in ACTIONS}
-        self.hotkey_triggers.update(cfg.get("hotkeys", {}))
-        self._sound_shortcuts = []
+        self.hotkey_triggers, self.bindings = load_hotkeys(cfg)
+        self.key_buttons = {}      # id → KeyButton
+        self.hypr_binds = HyprlandBinds(cfg.get("hypr_binds"), self) if IS_HYPRLAND else None
+        if self.hypr_binds:
+            self.hypr_binds.reloaded.connect(self._show_triggers)
         self._fallback_shortcuts = []
         self._previews = {}
         self._toggles = []         # (botón de encendido, botón de silencio) de otras ventanas
@@ -93,8 +137,8 @@ class MainWindow(QMainWindow):
         right.setSpacing(0)
         right.addWidget(self._build_header())
         self.pages = QStackedWidget()
-        for build in (self._page_mic, self._page_voices, self._page_sounds, self._page_effects,
-                      self._page_enhance, self._page_eq, self._page_settings):
+        for build in (self._page_mic, self._page_voice_conf, self._page_enhance, self._page_voices,
+                      self._page_sounds, self._page_hotkeys, self._page_settings):
             self.pages.addWidget(build())
         right.addWidget(self.pages, 1)
         self.status = QLabel(T("Apagado"), objectName="status")
@@ -122,8 +166,8 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(0, 44, 0, 0)
         lay.setSpacing(2)
         self.nav = QButtonGroup(self)
-        items = [("🎙", "Micrófono"), ("🎭", "Voces"), ("🔊", "Sonidos"), ("✨", "Efectos"),
-                 ("🎧", "Mejora"), ("🎚", "Ecualizador"), ("⚙", "Ajustes")]
+        items = [("layout-dashboard", "Panel"), ("audio-waveform", "Voz conf"), ("headphones", "Mejora"),
+                 ("drama", "Voces"), ("volume-2", "Sonidos"), ("keyboard", "Atajos"), ("settings", "Ajustes")]
         for i, (glyph, name) in enumerate(items):
             b = QToolButton(objectName="nav")
             b.setText(T(name))
@@ -148,22 +192,29 @@ class MainWindow(QMainWindow):
     def _build_header(self):
         h = QFrame(objectName="header")
         lay = QVBoxLayout(h)
-        lay.setContentsMargins(20, 12, 20, 12)
-        title = QLabel(APP_NAME, objectName="title")
-        title.setAlignment(Qt.AlignCenter)
-        lay.addWidget(title)
+        lay.setContentsMargins(24, 10, 24, 6)
+        lay.setSpacing(8)
         row = QHBoxLayout()
         row.addStretch()
+        logo = QLabel()
+        logo.setPixmap(glyph_icon("audio-lines", 30, ACCENT).pixmap(30, 30))
+        row.addWidget(logo)
+        row.addWidget(QLabel(APP_NAME, objectName="title"))
+        row.addStretch()
+        lay.addLayout(row)
+        box = QFrame(objectName="card")
+        row = QHBoxLayout(box)
+        row.setContentsMargins(16, 8, 10, 8)
         row.addWidget(QLabel(T("Dispositivo de entrada:")))
         self.device = QComboBox()
         self.device.currentIndexChanged.connect(self._on_device)
-        row.addWidget(self.device)
-        refresh = QPushButton("⟳", objectName="ghost")
+        row.addWidget(self.device, 1)
+        refresh = QPushButton(objectName="ghost")
+        refresh.setIcon(glyph_icon("refresh-cw", 16))
         refresh.setToolTip(T("Actualizar dispositivos"))
         refresh.clicked.connect(lambda: self._fill_devices())
         row.addWidget(refresh)
-        row.addStretch()
-        lay.addLayout(row)
+        lay.addWidget(box)
         return h
 
     def _add_slider(self, lay, key):
@@ -176,7 +227,7 @@ class MainWindow(QMainWindow):
         return s
 
     def _pill(self, text, slot, tip=None):
-        b = QPushButton(T(text), objectName="pill")
+        b = iconize(QPushButton(T(text), objectName="pill"))
         b.setCursor(Qt.PointingHandCursor)
         if tip:
             b.setToolTip(T(tip))
@@ -185,12 +236,8 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------ página: micrófono
     def _page_mic(self):
-        page = QWidget()
-        grid = QGridLayout(page)
-        grid.setContentsMargins(28, 14, 28, 14)
-        grid.setHorizontalSpacing(28)
-
-        col = QVBoxLayout()
+        area, col = scroll_page()
+        col.setSpacing(14)
         if IS_WINDOWS:
             self.vb_banner = QFrame(objectName="banner")
             bl = QHBoxLayout(self.vb_banner)
@@ -207,68 +254,199 @@ class MainWindow(QMainWindow):
             self.vb_banner.setVisible(not devices.virtual_mic_ready())
             col.addWidget(self.vb_banner)
 
-        top = QHBoxLayout()
-        self.meter = LevelMeter()
-        top.addStretch()
-        top.addWidget(self.meter)
-        top.addSpacing(30)
-        self.power = RoundToggle(170, T("ENCENDIDO"), T("APAGADO"), T("ACTIVO"), T("ACTIVAR"))
+        toggles = box = QFrame(objectName="card")
+        row = QHBoxLayout(box)
+        row.setContentsMargins(16, 10, 16, 10)
+        self.power = RoundToggle(120, T("ENCENDIDO"), T("APAGADO"), T("ACTIVO"), T("ACTIVAR"))
         self.power.setToolTip(T("Encender o apagar el micrófono virtual"))
         self.power.toggled.connect(self._on_power)
-        top.addWidget(self.power)
-        top.addSpacing(14)
-        side_btns = QVBoxLayout()
-        self.listen = RoundToggle(104, T("ESCUCHANDO"), T("ESCUCHAR"), "ON", "OFF", glyph="🎧")
+        row.addWidget(self.power)
+        row.addWidget(QFrame(objectName="vsep"))
+        self.listen = RoundToggle(92, T("ESCUCHANDO"), T("ESCUCHAR"), "ON", "OFF", glyph="headphones")
         self.listen.setToolTip(T("Escuchar tu voz modificada por los altavoces/auriculares"))
         self.listen.toggled.connect(self._on_monitor)
-        side_btns.addWidget(self.listen)
-        self.mute = RoundToggle(104, T("SILENCIADO"), T("SILENCIAR"), "ON", "OFF", glyph="🔇")
+        row.addWidget(self.listen)
+        self.mute = RoundToggle(92, T("SILENCIADO"), T("SILENCIAR"), "ON", "OFF", glyph="mic-off")
         self.mute.setToolTip(T("Silenciar tu voz (los sonidos siguen funcionando)"))
         self.mute.toggled.connect(self.set_muted)
-        side_btns.addWidget(self.mute)
-        top.addLayout(side_btns)
-        top.addStretch(2)
-        col.addLayout(top)
-        grid.addLayout(col, 0, 0)
+        row.addWidget(self.mute)
 
-        box, lay = card("Ajustes de voz")
-        for key in ("pitch", "formant", "bass", "treble", "gain", "denoise"):
-            self._add_slider(lay, key)
-        grid.addWidget(box, 1, 0)
+        voice_opts = box = QFrame(objectName="card")
+        v = QVBoxLayout(box)
+        v.setContentsMargins(14, 8, 14, 12)
+        head = QToolButton(objectName="cardToggle")
+        head.setText(T("Opciones de voz"))
+        head.setCheckable(True)
+        head.setChecked(True)
+        head.setLayoutDirection(Qt.RightToLeft)          # flecha a la derecha del texto
+        head.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        head.setIcon(glyph_icon("chevron-up", 14, ACCENT))
+        v.addWidget(head, 0, Qt.AlignLeft | Qt.AlignAbsolute)   # absoluta: el botón va de derecha a izquierda
+        options = QWidget()
+        h = QHBoxLayout(options)
+        h.setContentsMargins(0, 0, 0, 0)
+        for icon, text, slot, tip in (
+                ("audio-lines", "Normal /\núltima voz", self.toggle_voice,
+                 "Alterna entre tu voz normal y la última voz usada"),
+                ("user", "Selector\nde voces", lambda: self.toggle_window("quick_voices"), None),
+                ("layout-grid", "Panel de\nsonidos", lambda: self.toggle_window("sound_panel"), None)):
+            b = QToolButton(objectName="option")
+            b.setText(T(text))
+            b.setIcon(glyph_icon(icon, 26, ACCENT))
+            b.setIconSize(QSize(26, 26))
+            b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+            b.setFixedSize(92, 88)
+            b.setCursor(Qt.PointingHandCursor)
+            if tip:
+                b.setToolTip(T(tip))
+            b.clicked.connect(slot)
+            h.addWidget(b)
+        v.addWidget(options)
+        head.toggled.connect(lambda on: (options.setVisible(on),
+                                         head.setIcon(glyph_icon("chevron-up" if on else "chevron-down", 14, ACCENT))))
 
-        side = QVBoxLayout()
-        side.addWidget(QLabel(T("Voces rápidas"), objectName="section"))
-        self.quick_grid = QGridLayout()
-        self.quick_grid.setSpacing(10)
-        side.addLayout(self.quick_grid)
-        more = QPushButton(T("Ver todas las voces →"), objectName="link")
-        more.setCursor(Qt.PointingHandCursor)
-        more.clicked.connect(lambda: self._goto(1))
-        side.addWidget(more)
-        side.addSpacing(6)
-        side.addWidget(self._pill("⇄ Normal / última voz", self.toggle_voice,
-                                  "Alterna entre tu voz normal y la última voz usada"))
-        side.addWidget(self._pill("🪟 Selector de voces", lambda: self.toggle_window("quick_voices")))
-        side.addWidget(self._pill("🪟 Panel de sonidos", lambda: self.toggle_window("sound_panel")))
-        side.addStretch()
-        save = QPushButton(T("GUARDAR"), objectName="apply")
-        save.setToolTip(T("Guardar los ajustes actuales como predeterminados"))
-        save.setCursor(Qt.PointingHandCursor)
-        save.clicked.connect(lambda: self._save_config(announce=True))
-        side.addWidget(save)
-        grid.addLayout(side, 0, 1, 2, 1)
-        grid.setColumnStretch(0, 3)
-        grid.setColumnStretch(1, 1)
-        return page
+        meters = box = QFrame(objectName="card")
+        g = QGridLayout(box)
+        g.setContentsMargins(16, 12, 16, 8)
+        g.setHorizontalSpacing(12)
+        self.meter_in, self.meter_out = LevelMeter(), LevelMeter()
+        for r, (icon, text, meter) in enumerate((("mic", "ENTRADA", self.meter_in),
+                                                 ("volume-2", "SALIDA", self.meter_out))):
+            ic = QLabel()
+            ic.setPixmap(glyph_icon(icon, 22).pixmap(22, 22))
+            g.addWidget(ic, r, 0, Qt.AlignTop)
+            g.addWidget(QLabel(T(text), objectName="meterLabel"), r, 1, Qt.AlignTop)
+            g.addWidget(meter, r, 2)
+        g.setColumnStretch(2, 1)
+        meters.setMinimumWidth(330)
+        # Si no caben en una línea, los medidores bajan y ocupan todo el ancho.
+        col.addWidget(FlowRow([toggles, voice_opts, meters], stretch=[2]))
 
-    def _rebuild_quick_cards(self):
-        self.forget_voice_buttons("mic")
-        while self.quick_grid.count():
-            w = self.quick_grid.takeAt(0).widget()
-            if w:
-                w.deleteLater()
-        for i, name in enumerate(QUICK_VOICES):
-            self.quick_grid.addWidget(self.voice_card(name, owner="mic", size=(110, 80)), i // 2, i % 2)
+        self.voice_deck, self.sound_deck = ReflowGrid(120, DECK_COLS), ReflowGrid(120, DECK_COLS)
+        for title, deck in (("Voces rápidas", self.voice_deck), ("Sonidos rápidos", self.sound_deck)):
+            box, lay = card(title, "Clic para usar · Clic derecho o ⋮ para cambiar la casilla.")
+            lay.addWidget(deck, 1)
+            col.addWidget(box, 1)          # los paneles se reparten la altura sobrante
+        return area
+
+    def _deck_tile(self, button, open_menu):
+        """Casilla del panel rápido: el botón y, encima, «⋮» para cambiarla."""
+        w = QWidget()
+        w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        w.setMaximumHeight(170)            # tope: en ventanas muy altas no quedan casillas gigantes
+        g = QGridLayout(w)
+        g.setContentsMargins(0, 0, 0, 0)
+        g.addWidget(button, 0, 0)
+        dots = QToolButton(objectName="deckDots")
+        dots.setIcon(glyph_icon("ellipsis-vertical", 14))
+        dots.setIconSize(QSize(14, 14))
+        dots.setCursor(Qt.PointingHandCursor)
+        dots.setToolTip(T("Cambiar casilla"))
+        dots.clicked.connect(lambda: open_menu(dots))
+        g.addWidget(dots, 0, 0, Qt.AlignTop | Qt.AlignRight)
+        return w
+
+    def _deck_button(self, text, icon, color=None):
+        b = QToolButton(objectName="voice")
+        b.setText(text)
+        b.setToolTip(text)
+        b.setIcon(glyph_icon(icon, 26, color or "#d9dcdf"))
+        b.setIconSize(QSize(26, 26))
+        scale_with_size(b, icon, color or "#d9dcdf")
+        b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        self._deck_sizing(b)
+        b.setCursor(Qt.PointingHandCursor)
+        return b
+
+    @staticmethod
+    def _deck_sizing(b):
+        b.setMinimumSize(110, 76)
+        b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)   # crece con la ventana
+
+    def _rebuild_decks(self):
+        if not hasattr(self, "voice_deck"):
+            return
+        self.forget_voice_buttons("deck")
+        for sid in list(self.sound_buttons):
+            self.sound_buttons[sid] = [(o, b) for o, b in self.sound_buttons[sid] if o != "deck"]
+        names = set(self.voice_names())
+        tiles = []
+        for i, name in enumerate(self.voice_slots):
+            if name in names:
+                b = self.voice_card(name, owner="deck", size=(110, 76))
+                self._deck_sizing(b)
+                scale_with_size(b, self._voice_icon(name), ACCENT)
+            else:
+                b = self._deck_button(T("Vacío"), "plus")
+                b.clicked.connect(lambda _=False, i=i, b=b: self._deck_menu("voice", i, b))
+            self._deck_context(b, "voice", i)
+            tiles.append(self._deck_tile(b, lambda w, i=i: self._deck_menu("voice", i, w)))
+        self.voice_deck.set_widgets(tiles)
+        tiles = []
+        entries = getattr(self, "_entries", {})
+        if self.sound_slots is None and entries:
+            self.sound_slots = list(entries)[:DECK_SIZE]
+        slots = ((self.sound_slots or []) + [""] * DECK_SIZE)[:DECK_SIZE]
+        for i, sid in enumerate(slots):
+            if sid in entries:
+                m = self._sound_meta(entries[sid])
+                b = self._deck_button(m["name"], m["icon"])
+                b.setCheckable(True)
+                b.clicked.connect(lambda _=False, s=sid: self.play_sound(s))
+                self.sound_buttons.setdefault(sid, []).append(("deck", b))
+            else:
+                b = self._deck_button(T("Vacío"), "plus")
+                b.clicked.connect(lambda _=False, i=i, b=b: self._deck_menu("sound", i, b))
+            self._deck_context(b, "sound", i)
+            tiles.append(self._deck_tile(b, lambda w, i=i: self._deck_menu("sound", i, w)))
+        self.sound_deck.set_widgets(tiles)
+        self.mark_current_voice()
+
+    def _category_title(self, cat):
+        # «Mis sonidos» es la categoría guardada de los sonidos del usuario; se muestra así:
+        return T("Personalizados") if cat == MY_SOUNDS else T(cat)
+
+    def _deck_context(self, button, kind, i):
+        button.setContextMenuPolicy(Qt.CustomContextMenu)
+        button.customContextMenuRequested.connect(lambda _pos: self._deck_menu(kind, i, button))
+
+    def _deck_menu(self, kind, i, widget):
+        """Menú para elegir qué va en la casilla i del panel rápido."""
+        menu = QMenu(self)
+        if kind == "voice":
+            groups = [(T("Personalizadas"), sorted(self.custom_voices))]
+            groups += [(T(cat), list(voices)) for cat, voices in VOICE_BANK.items()]
+            for title, names in groups:
+                sub = menu.addMenu(title)
+                if not names:
+                    sub.addAction(T("Crear una voz en «Voz conf»…"), lambda *_: self._goto(1))
+                for n in names:
+                    sub.addAction(glyph_icon(self._voice_icon(n), 16, ACCENT), self.voice_label(n),
+                                  lambda *_, n=n: self._set_slot("voice", i, n))
+        else:
+            cats = {MY_SOUNDS: []}
+            for sid, e in getattr(self, "_entries", {}).items():
+                cats.setdefault(e.get("category") or MY_SOUNDS, []).append((sid, self._sound_meta(e)))
+            for cat, items in cats.items():
+                sub = menu.addMenu(self._category_title(cat))
+                if not items:
+                    sub.addAction(T("Añadir sonidos…"), lambda *_: self._pick_sounds())
+                for sid, m in items:
+                    sub.addAction(glyph_icon(m["icon"], 16), m["name"], lambda *_, s=sid: self._set_slot("sound", i, s))
+        menu.addSeparator()
+        menu.addAction(T("Vaciar casilla"), lambda *_: self._set_slot(kind, i, ""))
+        menu.exec(widget.mapToGlobal(widget.rect().bottomLeft()))
+
+    def _set_slot(self, kind, i, value):
+        slots = self.voice_slots if kind == "voice" else self.sound_slots
+        if slots is None:
+            slots = self.sound_slots = []
+        slots.extend([""] * (DECK_SIZE - len(slots)))
+        slots[i] = value
+        self._rebuild_decks()
+        if self.quick:
+            self.quick.rebuild()
+        self._save_config()
 
     # ------------------------------------------------------------ página: voces
     def _page_voices(self):
@@ -276,10 +454,9 @@ class MainWindow(QMainWindow):
         head = QHBoxLayout()
         head.addWidget(QLabel(T("Banco de voces"), objectName="section"))
         head.addStretch()
-        for text, slot in (("＋ Guardar voz actual", self._save_custom_voice),
-                           ("⬇ Importar…", self._import_voices_dialog),
+        for text, slot in (("⬇ Importar…", self._import_voices_dialog),
                            ("⬆ Exportar…", self._export_voices)):
-            b = QPushButton(T(text), objectName="ghost")
+            b = iconize(QPushButton(T(text), objectName="ghost"))
             b.clicked.connect(slot)
             head.addWidget(b)
         lay.addLayout(head)
@@ -288,6 +465,18 @@ class MainWindow(QMainWindow):
         hint.setWordWrap(True)
         lay.addWidget(hint)
 
+        lay.addWidget(QLabel(T("Personalizadas"), objectName="category"))
+        self.custom_grid = QGridLayout()
+        self.custom_grid.setSpacing(10)
+        for c in range(5):          # mismas 5 columnas que el banco aunque haya una sola voz
+            self.custom_grid.setColumnStretch(c, 1)
+        lay.addLayout(self.custom_grid)
+        self.custom_empty = QLabel(T("En «Voz conf» ajusta los controles y pulsa «Guardar como voz…». "
+                                     "Clic derecho sobre una voz propia para renombrarla, cambiar su icono "
+                                     "o borrarla."), objectName="muted")
+        self.custom_empty.setWordWrap(True)
+        lay.addWidget(self.custom_empty)
+
         for cat, voices in VOICE_BANK.items():
             lay.addWidget(QLabel(T(cat), objectName="category"))
             g = QGridLayout()
@@ -295,16 +484,6 @@ class MainWindow(QMainWindow):
             for i, name in enumerate(voices):
                 g.addWidget(self.voice_card(name, owner="bank"), i // 5, i % 5)
             lay.addLayout(g)
-
-        lay.addWidget(QLabel(T("Mis voces"), objectName="category"))
-        self.custom_grid = QGridLayout()
-        self.custom_grid.setSpacing(10)
-        lay.addLayout(self.custom_grid)
-        self.custom_empty = QLabel(T("Ajusta los controles a tu gusto y pulsa «＋ Guardar voz actual». "
-                                     "Clic derecho sobre una voz propia para renombrarla o borrarla."),
-                                   objectName="muted")
-        self.custom_empty.setWordWrap(True)
-        lay.addWidget(self.custom_empty)
         lay.addStretch()
         return area
 
@@ -320,13 +499,13 @@ class MainWindow(QMainWindow):
                            ("📦 Importar paquete…", self._import_pack_dialog),
                            ("📦 Exportar paquete…", self._export_pack),
                            ("🪟 Panel", lambda: self.toggle_window("sound_panel"))):
-            b = QPushButton(T(text), objectName="ghost")
+            b = iconize(QPushButton(T(text), objectName="ghost"))
             b.clicked.connect(slot)
             row.addWidget(b)
         row.addStretch()
         c.addLayout(row)
         row = QHBoxLayout()
-        stop = QPushButton(T("⏹ Detener todo"), objectName="ghost")
+        stop = iconize(QPushButton(T("⏹ Detener todo"), objectName="ghost"))
         stop.clicked.connect(self.stop_sounds)
         row.addWidget(stop)
         self.sound_filter = QLineEdit()
@@ -353,8 +532,26 @@ class MainWindow(QMainWindow):
         return area
 
     # ------------------------------------------------------------ página: efectos
-    def _page_effects(self):
+    def _page_voice_conf(self):
         area, lay = scroll_page()
+        row = QHBoxLayout()
+        row.addWidget(QLabel(T("Ajusta tu voz y guárdala para usarla cuando quieras."), objectName="muted"))
+        row.addStretch()
+        save = iconize(QPushButton(T("＋ Guardar como voz…"), objectName="apply"))
+        save.setCursor(Qt.PointingHandCursor)
+        save.clicked.connect(self._save_custom_voice)
+        row.addWidget(save)
+        lay.addLayout(row)
+        box, c = card("Ajustes de voz")
+        for key in ("pitch", "formant", "bass", "treble", "gain"):
+            self._add_slider(c, key)
+        lay.addWidget(box)
+        self._add_effects(lay)
+        self._add_eq(lay)
+        lay.addStretch()
+        return area
+
+    def _add_effects(self, lay):
         cols = QHBoxLayout()
         cols.setSpacing(16)
         left, right = QVBoxLayout(), QVBoxLayout()
@@ -381,7 +578,6 @@ class MainWindow(QMainWindow):
         reset = QPushButton(T("Quitar todos los efectos"), objectName="ghost")
         reset.clicked.connect(lambda: self.apply_voice("Natural"))
         lay.addWidget(reset, 0, Qt.AlignRight)
-        return area
 
     # ------------------------------------------------------------ página: mejora
     def _page_enhance(self):
@@ -427,8 +623,7 @@ class MainWindow(QMainWindow):
         return area
 
     # ------------------------------------------------------------ página: ecualizador
-    def _page_eq(self):
-        area, lay = scroll_page()
+    def _add_eq(self, lay):
         box, c = card("Ecualizador de 5 bandas")
         row = QHBoxLayout()
         for i, f in enumerate(EQ_BANDS):
@@ -444,10 +639,45 @@ class MainWindow(QMainWindow):
         reset.clicked.connect(self._reset_eq)
         c.addWidget(reset, 0, Qt.AlignRight)
         lay.addWidget(box)
+
+    # ------------------------------------------------------------ página: ajustes
+    def _page_hotkeys(self):
+        area, lay = scroll_page()
+        box, c = card("Tus atajos",
+                      "Elige una voz o un sonido y la tecla que lo activa; funcionan aunque estés dentro de un "
+                      "juego. Haz clic en la tecla y pulsa la nueva (también combinaciones como Shift+1 o "
+                      "Alt+F1); Retroceso la quita y Esc cancela.")
+        self.hotkey_status = QLabel(objectName="muted")
+        self.hotkey_status.setWordWrap(True)
+        c.addWidget(self.hotkey_status)
+        self.binding_grid = QGridLayout()
+        self.binding_grid.setHorizontalSpacing(10)
+        self.binding_grid.setColumnStretch(3, 1)
+        c.addLayout(self.binding_grid)
+        add = iconize(QPushButton(T("＋ Añadir atajo"), objectName="ghost"))
+        add.clicked.connect(self._add_binding)
+        c.addWidget(add, 0, Qt.AlignLeft)
+        lay.addWidget(box)
+
+        box, c = card("Atajos generales")
+        self.general_grid = QGridLayout()
+        self.general_grid.setHorizontalSpacing(12)
+        self.general_grid.setColumnStretch(2, 1)
+        c.addLayout(self.general_grid)
+        row = QHBoxLayout()
+        if system_hotkeys_in_desktop():
+            b = QPushButton(T("Cambiar teclas en el sistema…"), objectName="ghost")
+            b.clicked.connect(self.hotkeys.configure)
+            row.addWidget(b)
+        reset = QPushButton(T("Restablecer teclas"), objectName="ghost")
+        reset.clicked.connect(self._reset_hotkeys)
+        row.addWidget(reset)
+        row.addStretch()
+        c.addLayout(row)
+        lay.addWidget(box)
         lay.addStretch()
         return area
 
-    # ------------------------------------------------------------ página: ajustes
     def _page_settings(self):
         area, lay = scroll_page()
 
@@ -498,37 +728,6 @@ class MainWindow(QMainWindow):
         c.addWidget(info)
         lay.addWidget(box)
 
-        box, c = card("Atajos de teclado", "Funcionan aunque estés dentro de un juego o de otra app.")
-        self.hotkey_status = QLabel(objectName="muted")
-        self.hotkey_status.setWordWrap(True)
-        c.addWidget(self.hotkey_status)
-        self.hotkey_grid = QGridLayout()
-        self.hotkey_grid.setHorizontalSpacing(14)
-        self.hotkey_labels = {}
-        self.slot_combos = []
-        for r, (sid, desc, _) in enumerate(ACTIONS):
-            self.hotkey_grid.addWidget(QLabel(T(desc)), r, 0)
-            key = QLabel("—", objectName="key")
-            self.hotkey_labels[sid] = key
-            self.hotkey_grid.addWidget(key, r, 1)
-            if sid.startswith("voice_"):
-                combo = QComboBox()
-                combo.setMinimumWidth(180)
-                combo.currentIndexChanged.connect(lambda _=0, i=int(sid[-1]) - 1: self._on_slot_changed(i))
-                self.slot_combos.append(combo)
-                self.hotkey_grid.addWidget(combo, r, 2)
-            if not system_hotkeys_in_desktop():
-                edit = QPushButton(T("Cambiar…"), objectName="ghost")
-                edit.clicked.connect(lambda _=False, s=sid, d=desc: self._edit_hotkey(s, d))
-                self.hotkey_grid.addWidget(edit, r, 3)
-        self.hotkey_grid.setColumnStretch(4, 1)
-        c.addLayout(self.hotkey_grid)
-        if system_hotkeys_in_desktop():
-            b = QPushButton(T("Cambiar teclas en el sistema…"), objectName="ghost")
-            b.clicked.connect(self.hotkeys.configure)
-            c.addWidget(b, 0, Qt.AlignLeft)
-        lay.addWidget(box)
-
         box, c = card("Aplicación")
         row = QHBoxLayout()
         row.addWidget(QLabel(T("Idioma:")))
@@ -566,13 +765,13 @@ class MainWindow(QMainWindow):
 
     def _voice_icon(self, name):
         bank = all_voices()
-        return bank[name][0] if name in bank else "⭐"
+        return bank[name][0] if name in bank else self.voice_icons.get(name, "star")
 
     def voice_card(self, name, owner, size=(104, 84), small=False):
         b = QToolButton(objectName="voiceSmall" if small else "voice")
         b.setText(self.voice_label(name))
         b.setToolTip(self.voice_label(name))
-        b.setIcon(glyph_icon(self._voice_icon(name), 22 if small else 30))
+        b.setIcon(glyph_icon(self._voice_icon(name), 22 if small else 30, ACCENT))
         b.setIconSize(QSize(22, 22) if small else QSize(30, 30))
         b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         b.setCheckable(True)
@@ -580,7 +779,7 @@ class MainWindow(QMainWindow):
         b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         b.setCursor(Qt.PointingHandCursor)
         b.clicked.connect(lambda _=False, n=name: self.apply_voice(n))
-        if name in self.custom_voices:
+        if name in self.custom_voices and owner != "deck":   # en el panel, clic derecho cambia la casilla
             b.setContextMenuPolicy(Qt.CustomContextMenu)
             b.customContextMenuRequested.connect(lambda _pos, n=name, w=b: self._custom_menu(n, w))
         self.voice_buttons.append((owner, name, b))
@@ -640,11 +839,6 @@ class MainWindow(QMainWindow):
             self._set_voice(Params().to_dict(), "Natural")
             self._flash(T("Voz normal"))
 
-    def apply_slot(self, i):
-        name = self.voice_slots[i] if i < len(self.voice_slots) else None
-        if name:
-            self.apply_voice(name)
-
     # ---------------------------------------------------- voces propias
     def _rebuild_custom(self):
         self.forget_voice_buttons("custom")
@@ -655,7 +849,8 @@ class MainWindow(QMainWindow):
         for i, name in enumerate(sorted(self.custom_voices)):
             self.custom_grid.addWidget(self.voice_card(name, owner="custom"), i // 5, i % 5)
         self.custom_empty.setVisible(not self.custom_voices)
-        self._fill_slot_combos()
+        self._rebuild_decks()
+        self._build_hotkey_rows()
         if self.quick:
             self.quick.rebuild()
         self.mark_current_voice()
@@ -670,13 +865,16 @@ class MainWindow(QMainWindow):
     def _custom_menu(self, name, widget):
         m = QMenu(self)
         a_ren = m.addAction(T("Renombrar…"))
+        a_icon = m.addAction(T("Cambiar icono…"))
         a_exp = m.addAction(T("Exportar…"))
         m.addSeparator()
         a_del = m.addAction(T("Borrar «{}»").format(name))
         act = m.exec(widget.mapToGlobal(widget.rect().center()))
         if act is a_del:
             del self.custom_voices[name]
+            self.voice_icons.pop(name, None)
             self.voice_slots = [s if s != name else "" for s in self.voice_slots]
+            self.bindings = [b for b in self.bindings if b[0] != f"voice:{name}"]
         elif act is a_ren:
             new, ok = QInputDialog.getText(self, T("Renombrar"), T("Nombre:"), text=name)
             new = new.strip()[:40]
@@ -684,9 +882,19 @@ class MainWindow(QMainWindow):
                 return
             new = self._unique_voice_name(new)
             self.custom_voices[new] = self.custom_voices.pop(name)
+            if name in self.voice_icons:
+                self.voice_icons[new] = self.voice_icons.pop(name)
             self.voice_slots = [s if s != name else new for s in self.voice_slots]
+            for b in self.bindings:
+                if b[0] == f"voice:{name}":
+                    b[0] = f"voice:{new}"
             if self.current_voice == name:
                 self.current_voice = new
+        elif act is a_icon:
+            picker = IconPicker(self, self._voice_icon(name))
+            if not (picker.exec() and picker.value):
+                return
+            self.voice_icons[name] = picker.value
         elif act is a_exp:
             self._export_voices([name])
             return
@@ -696,21 +904,22 @@ class MainWindow(QMainWindow):
         self._save_config()
 
     def _save_custom_voice(self):
-        name, ok = QInputDialog.getText(self, T("Guardar voz"), T("Nombre de la voz:"))
-        name = name.strip()[:40]
-        if not ok or not name:
+        dlg = SaveVoiceDialog(self)
+        if not dlg.exec():
             return
+        name = dlg.name.text().strip()[:40]
         if name in all_voices():
             QMessageBox.warning(self, APP_NAME, T("Ya existe una voz del banco con ese nombre."))
             return
         self.custom_voices[name] = self._voice_snapshot()
+        self.voice_icons[name] = dlg.icon
         self.current_voice = name
         self._rebuild_custom()
         self._save_config()
 
     def _export_voices(self, names=None):
         if not self.custom_voices:
-            QMessageBox.information(self, APP_NAME, T("Primero guarda alguna voz con «＋ Guardar voz actual»."))
+            QMessageBox.information(self, APP_NAME, T("Primero guarda alguna voz con «Guardar voz actual»."))
             return
         if names is None:
             dlg = CheckListDialog(self, T("Exportar voces"), T("Elige las voces que quieres compartir:"),
@@ -746,7 +955,7 @@ class MainWindow(QMainWindow):
             self.custom_voices[self._unique_voice_name(name)] = params
         self._rebuild_custom()
         self._save_config()
-        self._goto(1)
+        self._goto(3)
         self._flash(T("{} voz/voces importada(s) en «Mis voces»").format(len(voices)))
 
     # ================================================================ parámetros
@@ -763,6 +972,7 @@ class MainWindow(QMainWindow):
     def _push(self, p):
         self.params = p
         self.engine.processor.set_params(p.copy())
+        self._autosave.start()          # guarda poco después del último cambio
 
     def _on_slider(self):
         s = self.sender()
@@ -817,17 +1027,8 @@ class MainWindow(QMainWindow):
         self.rebuild_sound_view("page")
         if self.panel:
             self.rebuild_sound_view("panel")
-        for sc in self._sound_shortcuts:
-            sc.setEnabled(False)
-            sc.deleteLater()
-        self._sound_shortcuts = []
-        for sid, e in self._entries.items():
-            hk = self._sound_meta(e)["hotkey"]
-            if hk:
-                sc = QShortcut(QKeySequence(hk), self)
-                sc.setContext(Qt.ApplicationShortcut)
-                sc.activated.connect(lambda s=sid: self.play_sound(s))
-                self._sound_shortcuts.append(sc)
+        self._rebuild_decks()
+        self._build_hotkey_rows()
 
     def rebuild_sound_view(self, owner):
         if not hasattr(self, "_entries"):
@@ -855,19 +1056,20 @@ class MainWindow(QMainWindow):
             cats = {MY_SOUNDS: [], **cats}
         sections = []
         for cat, entries in cats.items():
-            title = QLabel(T(cat), objectName="category")
+            title = QLabel(self._category_title(cat), objectName="category")
             box.addWidget(title)
             g = QGridLayout()
             g.setSpacing(8 if small else 10)
             if not entries:
-                hint = QLabel(T("Aún no has añadido sonidos: usa «＋ Añadir sonidos…» o arrastra "
+                hint = QLabel(T("Aún no has añadido sonidos: usa «Añadir sonidos…» o arrastra "
                                 "archivos (WAV, MP3, OGG, FLAC)."), objectName="muted")
                 hint.setWordWrap(True)
                 g.addWidget(hint, 0, 0, 1, cols)
             buttons = []
             for i, e in enumerate(entries):
                 m = self._sound_meta(e)
-                label = m["name"] + (f"\n⌨ {m['hotkey']}" if m["hotkey"] else "")
+                key = self.trigger_text(f"sound:{e['id']}")
+                label = m["name"] + (f"\n⌨ {key}" if key else "")
                 b = QToolButton(objectName="voiceSmall" if small else "voice")
                 b.setText(label)
                 b.setIcon(glyph_icon(m["icon"], 22 if small else 26))
@@ -956,7 +1158,8 @@ class MainWindow(QMainWindow):
         a_loop.setCheckable(True)
         a_loop.setChecked(m["loop"])
         a_key = menu.addAction(T("Asignar atajo de teclado…"))
-        a_nokey = menu.addAction(T("Quitar atajo")) if m["hotkey"] else None
+        a_nokey = menu.addAction(T("Quitar atajo")) if any(b[0] == f"sound:{sid}" for b in self.bindings) \
+            else None
         a_reset = menu.addAction(T("Restablecer")) if self.sound_cfg.get(sid) else None
         a_del = None
         if not e.get("builtin"):
@@ -970,9 +1173,9 @@ class MainWindow(QMainWindow):
             if ok and name.strip():
                 self._set_meta(sid, name=name.strip()[:40])
         elif act is a_icon:
-            icon, ok = QInputDialog.getText(self, T("Icono"), T("Emoji o carácter:"), text=m["icon"])
-            if ok and icon.strip():
-                self._set_meta(sid, icon=icon.strip()[:2])
+            picker = IconPicker(self, m["icon"])
+            if picker.exec() and picker.value:
+                self._set_meta(sid, icon=picker.value)
         elif act is a_vol:
             v, ok = QInputDialog.getInt(self, T("Volumen"), T("Volumen del sonido (%):"), m["volume"], 0, 300, 5)
             if ok:
@@ -980,15 +1183,17 @@ class MainWindow(QMainWindow):
         elif act is a_loop:
             self._set_meta(sid, loop=a_loop.isChecked())
         elif act is a_key:
-            key = key_capture(self, T("Atajo de teclado"),
-                              T("Pulsa la combinación para «{}»\n(funciona con la ventana activa):").format(m["name"]))
+            key = key_capture(self, T("Atajo de teclado"), T("Pulsa la combinación para «{}»:").format(m["name"]))
             if key:
-                for cfg in self.sound_cfg.values():  # un atajo, un sonido
-                    if cfg.get("hotkey") == key:
-                        cfg["hotkey"] = ""
-                self._set_meta(sid, hotkey=key)
+                row = next((b for b in self.bindings if b[0] == f"sound:{sid}"), None)
+                if row:
+                    row[1] = to_portal(key)
+                else:
+                    self.bindings.append([f"sound:{sid}", to_portal(key)])
+                self._hotkeys_changed()
         elif act is a_nokey:
-            self._set_meta(sid, hotkey="")
+            self.bindings = [b for b in self.bindings if b[0] != f"sound:{sid}"]
+            self._hotkeys_changed()
         elif act is a_reset:
             self.sound_cfg.pop(sid, None)
             self._rebuild_sounds()
@@ -998,6 +1203,7 @@ class MainWindow(QMainWindow):
             sb.delete_user_file(e)
             self.user_sounds = [u for u in self.user_sounds if u["id"] != sid]
             self.sound_cfg.pop(sid, None)
+            self.bindings = [b for b in self.bindings if b[0] != f"sound:{sid}"]
             self._rebuild_sounds()
             self._save_config()
 
@@ -1079,7 +1285,7 @@ class MainWindow(QMainWindow):
         self.sound_cfg.update(metas)
         self._rebuild_sounds()
         self._save_config()
-        self._goto(2)
+        self._goto(4)
         self._flash(T("Paquete «{}» importado: {} sonido(s)").format(name, len(entries)))
         if errors:
             QMessageBox.warning(self, APP_NAME, T("No se pudieron añadir:") + "\n" + "\n".join(errors))
@@ -1121,17 +1327,133 @@ class MainWindow(QMainWindow):
     # ================================================================ atajos
     def _start_hotkeys(self):
         self.hotkey_status.setText(T("Conectando con el sistema…"))
-        if not self.hotkeys.start(self.hotkey_triggers):
+        if not self.hotkeys.start(self._hotkey_actions()):
             self._enable_fallback_shortcuts(T("Atajos globales no disponibles en este sistema."))
 
+    def _targets(self):
+        """[(destino, texto, icono)] de las voces y los sonidos que pueden tener atajo."""
+        out = [(f"voice:{n}", self.voice_label(n), self._voice_icon(n)) for n in self.voice_names()]
+        for sid, e in getattr(self, "_entries", {}).items():
+            m = self._sound_meta(e)
+            out.append((f"sound:{sid}", m["name"], m["icon"]))
+        return out
+
+    def _hotkey_actions(self):
+        """[(id, descripción, tecla)] para registrar: generales y una por fila."""
+        labels = {t: text for t, text, _ in self._targets()}
+        acts = [(sid, T(desc), self.hotkey_triggers.get(sid, "")) for sid, desc, _ in ACTIONS]
+        # ponytail: el id lleva el número de fila; en KDE/GNOME quitar una fila renumera las siguientes.
+        acts += [(f"{t}#{i}", labels.get(t, t), trig) for i, (t, trig) in enumerate(self.bindings) if t]
+        return acts
+
+    def _build_hotkey_rows(self):
+        for grid in (self.binding_grid, self.general_grid):
+            while grid.count():
+                w = grid.takeAt(0).widget()
+                if w:
+                    w.deleteLater()
+        self.key_buttons = {}
+        targets = self._targets()
+        for i, (target, trig) in enumerate(self.bindings):
+            combo = QComboBox()
+            combo.setMinimumWidth(230)
+            combo.setIconSize(QSize(18, 18))
+            for n, (t, text, icon) in enumerate(targets):
+                if n and t.startswith("sound:") and not targets[n - 1][0].startswith("sound:"):
+                    combo.insertSeparator(combo.count())
+                combo.addItem(glyph_icon(icon, 18, ACCENT), text, t)
+            if combo.findData(target) < 0:
+                combo.addItem(T("(ya no existe)"), target)
+            combo.setCurrentIndex(combo.findData(target))
+            combo.currentIndexChanged.connect(lambda _=0, i=i, c=combo: self._set_binding(i, c.currentData(), None))
+            key = KeyButton(trig)
+            key.changed.connect(lambda t, i=i: self._set_binding(i, None, t))
+            rm = QPushButton(objectName="ghost")
+            rm.setIcon(glyph_icon("trash-2", 16))
+            rm.setToolTip(T("Quitar atajo"))
+            rm.clicked.connect(lambda _=False, i=i: self._remove_binding(i))
+            self.binding_grid.addWidget(combo, i, 0)
+            self.binding_grid.addWidget(key, i, 1)
+            self.binding_grid.addWidget(rm, i, 2)
+            self.key_buttons[f"{target}#{i}"] = key
+        for r, (sid, desc, _) in enumerate(ACTIONS):
+            key = KeyButton(self.hotkey_triggers.get(sid, ""))
+            key.changed.connect(lambda t, s=sid: self._set_hotkey(s, t))
+            self.general_grid.addWidget(QLabel(T(desc)), r, 0)
+            self.general_grid.addWidget(key, r, 1)
+            self.key_buttons[sid] = key
+        self._show_triggers()
+
+    def _show_triggers(self):
+        """Teclas en los botones y conflictos en rojo; en Hyprland, además, las pone."""
+        system = self.hotkeys.backend == "portal" and system_hotkeys_in_desktop()
+        busy = set()
+        actions = self._hotkey_actions()
+        if self.hypr_binds and self.hotkeys.backend == "portal":
+            before = dict(self.hypr_binds.applied)
+            busy = self.hypr_binds.apply(actions)
+            if self.hypr_binds.applied != before:
+                self._save_config()
+        trig = {sid: t for sid, _, t in actions}
+        used = Counter(t.lower() for t in trig.values() if t)
+        for sid, key in self.key_buttons.items():
+            t = trig.get(sid, "")
+            key.setEnabled(not system)
+            key.set_trigger(t, (self.hotkeys.triggers.get(sid) or "—") if system else None)
+            key.set_conflict(not system and bool(t) and (used[t.lower()] > 1 or sid in busy))
+            key.setToolTip(T("Hyprland ya usa esta tecla para otra cosa: elige otra.") if sid in busy
+                           else T("Esta tecla ya la usa otro atajo.") if key.property("conflict") else "")
+
+    def _hotkeys_changed(self):
+        """Tras cambiar atajos: guardar, registrarlos de nuevo y refrescar lo que los muestra."""
+        self._save_config()
+        self.hotkeys.stop()
+        self._start_hotkeys()
+        self._rebuild_sounds()          # etiquetas «⌨ tecla» de los sonidos y filas de atajos
+        if self.quick:
+            self.quick.rebuild()
+
+    def _set_hotkey(self, sid, trigger):
+        self.hotkey_triggers[sid] = trigger
+        self._hotkeys_changed()
+
+    def _set_binding(self, i, target, trigger):
+        if i < len(self.bindings):
+            if target is not None:
+                self.bindings[i][0] = target
+            if trigger is not None:
+                self.bindings[i][1] = trigger
+            self._hotkeys_changed()
+
+    def _add_binding(self):
+        used = {t for t, _ in self.bindings}
+        target = next((t for t, _, _ in self._targets() if t not in used), "")
+        self.bindings.append([target, ""])
+        self._hotkeys_changed()
+        self.key_buttons[f"{target}#{len(self.bindings) - 1}"].click()   # a pulsar la tecla directamente
+
+    def _remove_binding(self, i):
+        if i < len(self.bindings):
+            del self.bindings[i]
+            self._hotkeys_changed()
+
+    def _reset_hotkeys(self):
+        if QMessageBox.question(self, APP_NAME, T("¿Quitar tus atajos y volver a las teclas "
+                                                  "predeterminadas?")) != QMessageBox.Yes:
+            return
+        self.hotkey_triggers, self.bindings = load_hotkeys({})
+        self._hotkeys_changed()
+
     def _on_hotkeys_changed(self, triggers):
-        for sid, lbl in self.hotkey_labels.items():
-            lbl.setText(triggers.get(sid) or "—")
-        if self.hotkeys.backend == "portal":
+        if self.hotkeys.backend == "portal" and IS_HYPRLAND:
+            self.hotkey_status.setText(T("Atajos globales activos. Las teclas en rojo ya las usa Hyprland u "
+                                         "otra acción: pasa el ratón por encima para saber cuál."))
+        elif self.hotkeys.backend == "portal":
             self.hotkey_status.setText(T("Atajos globales activos. Puedes cambiar las teclas en la "
                                          "configuración del sistema."))
         elif self.hotkeys.backend == "windows":
             self.hotkey_status.setText(T("Atajos globales activos."))
+        self._show_triggers()
         if self.quick:
             self.quick.rebuild()
 
@@ -1147,39 +1469,36 @@ class MainWindow(QMainWindow):
             sc.setEnabled(False)
             sc.deleteLater()
         self._fallback_shortcuts = []
-        shown = {}
-        for sid, trig in self.hotkey_triggers.items():
+        for sid, _, trig in self._hotkey_actions():
             if not trig:
                 continue
-            seq = pretty(trig).replace("Espacio", "Space")
-            sc = QShortcut(QKeySequence(seq), self)
+            sc = QShortcut(QKeySequence(pretty(trig).replace("Espacio", "Space")), self)
             sc.setContext(Qt.ApplicationShortcut)
             sc.activated.connect(lambda s=sid: self._on_hotkey(s))
             self._fallback_shortcuts.append(sc)
-            shown[sid] = pretty(trig)
-        for sid, lbl in self.hotkey_labels.items():
-            lbl.setText(shown.get(sid, "—"))
+        self._show_triggers()
         self.hotkey_status.setText(reason + " " + T("Los atajos funcionarán solo con la ventana de la app activa."))
 
-    def _edit_hotkey(self, sid, desc):
-        seq = key_capture(self, T("Atajo de teclado"), T("Pulsa la combinación para «{}»:").format(T(desc)))
-        if not seq:
-            return
-        self.hotkey_triggers[sid] = to_portal(seq)
-        self._save_config()
-        self.hotkeys.stop()
-        self._start_hotkeys()
-
     def trigger_text(self, sid):
-        lbl = self.hotkey_labels.get(sid)
-        text = lbl.text() if lbl else ""
-        return "" if text == "—" else text
+        """Tecla de una acción general, voz o sonido, tal como la verá el usuario ("" si no tiene)."""
+        system = self.hotkeys.backend == "portal" and system_hotkeys_in_desktop()
+        for aid, _, trig in self._hotkey_actions():
+            if aid == sid or binding_target(aid) == sid:
+                text = self.hotkeys.triggers.get(aid, "") if system else (pretty(trig) if trig else "")
+                if text:
+                    return text
+        return ""
 
     def _on_hotkey(self, sid):
+        sid = binding_target(sid)
         if sid == "toggle_voice":
             self.toggle_voice()
-        elif sid.startswith("voice_"):
-            self.apply_slot(int(sid[-1]) - 1)
+        elif sid.startswith("voice:"):
+            if sid[6:] in self.voice_names():
+                self.apply_voice(sid[6:])
+        elif sid.startswith("sound:"):
+            if sid[6:] in getattr(self, "_entries", {}):
+                self.play_sound(sid[6:])
         elif sid == "mute":
             self.set_muted(not self.engine.muted)
         elif sid == "ptt":
@@ -1194,26 +1513,6 @@ class MainWindow(QMainWindow):
     def _on_hotkey_release(self, sid):
         if sid == "ptt":
             self.engine.ptt_down = False
-
-    def _fill_slot_combos(self):
-        names = self.voice_names()
-        for i, combo in enumerate(self.slot_combos):
-            combo.blockSignals(True)
-            combo.clear()
-            combo.addItem("—", "")
-            for n in names:
-                combo.addItem(self.voice_label(n), n)
-            current = self.voice_slots[i] if i < len(self.voice_slots) else ""
-            combo.setCurrentIndex(max(0, combo.findData(current)))
-            combo.blockSignals(False)
-
-    def _on_slot_changed(self, i):
-        while len(self.voice_slots) < 5:
-            self.voice_slots.append("")
-        self.voice_slots[i] = self.slot_combos[i].currentData() or ""
-        if self.quick:
-            self.quick.rebuild()
-        self._save_config()
 
     # ================================================================ audio
     def _fill_devices(self, select=None):
@@ -1340,7 +1639,8 @@ class MainWindow(QMainWindow):
 
     def _tick(self):
         e = self.engine
-        self.meter.set_levels(e.level_in, e.level_out)
+        self.meter_in.set_level(e.level_in)
+        self.meter_out.set_level(e.level_out)
         self.vad.setValue(int(e.processor.denoiser.speech_prob * 100) if e.running else 0)
         playing = e.soundboard.playing_ids() if e.running else {s for s, p in self._previews.items() if p.active}
         for sid, btns in self.sound_buttons.items():
@@ -1388,7 +1688,8 @@ class MainWindow(QMainWindow):
         menu.addAction(self.tray_power)
         menu.addAction(self.tray_mute)
         menu.addSeparator()
-        menu.addAction(T("⇄ Normal / última voz"), self.toggle_voice)
+        menu.addAction(glyph_icon("arrow-left-right", 16), T("⇄ Normal / última voz").partition(" ")[2],
+                       self.toggle_voice)
         self.tray_voices = menu.addMenu(T("Voces rápidas"))
         self.tray_voices.aboutToShow.connect(self._fill_tray_voices)
         menu.addSeparator()
@@ -1462,11 +1763,12 @@ class MainWindow(QMainWindow):
         self.engine.latency_ms = self.latency.value()
         self.tray_close.setChecked(cfg.get("close_to_tray", True))
         self.custom_voices = cfg.get("custom_voices", {})
+        self.voice_icons = {k: v for k, v in cfg.get("voice_icons", {}).items() if k in self.custom_voices}
         slots = cfg.get("voice_slots", DEFAULT_SLOTS)
-        self.voice_slots = (list(slots) + [""] * 5)[:5]
+        self.voice_slots = (list(slots) + [""] * DECK_SIZE)[:DECK_SIZE]
+        self.sound_slots = cfg.get("sound_slots")
         last = cfg.get("last_voice")
         self.last_voice = (last.get("name"), last.get("params")) if isinstance(last, dict) else None
-        self._rebuild_quick_cards()
         self._rebuild_custom()
         p = Params.from_dict(cfg.get("params", {}))
         self._show_params(p)
@@ -1500,8 +1802,12 @@ class MainWindow(QMainWindow):
             "current_voice": self.current_voice,
             "last_voice": {"name": self.last_voice[0], "params": self.last_voice[1]} if self.last_voice else None,
             "custom_voices": self.custom_voices,
+            "voice_icons": self.voice_icons,
             "voice_slots": self.voice_slots,
+            "sound_slots": self.sound_slots,
             "hotkeys": self.hotkey_triggers,
+            "bindings": self.bindings,
+            "hypr_binds": self.hypr_binds.applied if self.hypr_binds else {},
             "sounds": self.sound_cfg,
             "user_sounds": [{k: u[k] for k in ("id", "path", "name", "icon", "category")} for u in self.user_sounds],
             "sfx_volume": self.sfx_volume.value(),
@@ -1526,6 +1832,8 @@ class MainWindow(QMainWindow):
                                                   "Usa «Salir» en su menú para cerrarme del todo."),
                                       QIcon(str(ICON_PATH)), 5000)
             return
+        if self.hypr_binds:
+            self.hypr_binds.clear()
         self._save_config()
         for w in (self.quick, self.panel):
             if w:
@@ -1540,8 +1848,9 @@ class MainWindow(QMainWindow):
 
 
 def system_hotkeys_in_desktop():
-    """En Linux las teclas se cambian en la configuración del escritorio (portal)."""
-    return not IS_WINDOWS
+    """En KDE/GNOME las teclas se cambian en la configuración del escritorio
+    (portal). En Hyprland el portal no asigna teclas: se eligen en la app."""
+    return not IS_WINDOWS and not IS_HYPRLAND
 
 
 def _load_cfg():
@@ -1561,16 +1870,36 @@ def selftest():
     p.set_params(params)
     x = (np.random.default_rng(0).standard_normal(48000) * 0.1).astype(np.float32)
     y = np.concatenate([p.process(x[i:i + 256]) for i in range(0, len(x), 256)])
+    # Que la voz cambie de verdad: un tono de 220 Hz a +12 semitonos debe salir a ~440 Hz.
+    p = Processor()
+    p.set_params(Params(pitch=12))
+    t = np.arange(48000) / 48000
+    tone = (0.3 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
+    out = np.concatenate([p.process(tone[i:i + 256]) for i in range(0, len(tone), 256)])[24000:]
+    peak = float(np.argmax(np.abs(np.fft.rfft(out))) * 48000 / len(out))
     sounds = builtin_sounds()
     data = load_audio(sounds[0]["path"])
-    ok = bool(np.isfinite(y).all()) and Denoiser.available and len(sounds) > 40 and len(data) > 1000
+    dsp_ok = bool(np.isfinite(y).all()) and abs(peak - 440) < 20
+    # Los programas del sistema no deben heredar las librerías empaquetadas (ver main).
+    host_env = "_internal" not in os.environ.get("LD_LIBRARY_PATH", "")
+    ok = dsp_ok and host_env and Denoiser.available and len(sounds) > 40 and len(data) > 1000
     print(f"{APP_NAME} {__version__} selftest: rnnoise={Denoiser.available} sonidos={len(sounds)} "
-          f"dsp={'ok' if np.isfinite(y).all() else 'ERROR'} -> {'OK' if ok else 'FALLO'}")
+          f"tono={peak:.0f}Hz dsp={'ok' if dsp_ok else 'ERROR'} entorno={'ok' if host_env else 'ERROR'} "
+          f"-> {'OK' if ok else 'FALLO'}")
     return 0 if ok else 1
 
 
 def main():
     # Selector de archivos nativo del escritorio (KDE/GNOME) vía portal.
+    if getattr(sys, "frozen", False) and not IS_WINDOWS:
+        # PyInstaller pone sus librerías en LD_LIBRARY_PATH y los programas del
+        # sistema que lanzamos (pactl, hyprctl…) cargarían su libstdc++ antigua y
+        # fallarían. El proceso actual ya las tiene resueltas: se restaura el original.
+        orig = os.environ.pop("LD_LIBRARY_PATH_ORIG", None)
+        if orig is None:
+            os.environ.pop("LD_LIBRARY_PATH", None)
+        else:
+            os.environ["LD_LIBRARY_PATH"] = orig
     if "--selftest" in sys.argv:
         return selftest()
     if not IS_WINDOWS:
@@ -1580,6 +1909,7 @@ def main():
     app.setApplicationVersion(__version__)
     app.setDesktopFileName(APP_ID)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
+    QFontDatabase.addApplicationFont(str(EMOJI_FONT))
     app.setQuitOnLastWindowClosed(False)
 
     # Una sola instancia: si ya hay una abierta, se le pide que se muestre.

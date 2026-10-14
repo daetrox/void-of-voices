@@ -106,8 +106,9 @@ jobs:
       - name: Instalador (Inno Setup)
         shell: pwsh
         run: |
+          # 6.7+: tema oscuro, fondo propio y extracción de .zip (ver voidofvoices.iss).
+          choco install innosetup --version=6.7.3 -y --no-progress --force | Out-Null
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
           & $iscc "/DAppVersion=${{ steps.ver.outputs.v }}" packaging\windows\voidofvoices.iss
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Firmar el instalador
