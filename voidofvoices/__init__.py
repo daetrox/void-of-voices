@@ -48,6 +48,8 @@ ICON_PATH = RESOURCE_DIR / "voidofvoices" / "assets" / "icon.svg"
 EMOJI_FONT = RESOURCE_DIR / "voidofvoices" / "assets" / "Twemoji.Mozilla.ttf"
 # Iconos: «nombre» = SVG de Lucide incluido; «img:archivo» = imagen del usuario; si no, emoji.
 ICON_DIR = RESOURCE_DIR / "voidofvoices" / "assets" / "icons"
+# Emojis como imagen (Twemoji): con la fuente, Windows no los dibujaba en los iconos.
+EMOJI_DIR = RESOURCE_DIR / "voidofvoices" / "assets" / "twemoji"
 USER_ICON_DIR = DATA_DIR / "icons"
 ICON_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif")
 MAX_ICON_BYTES = 2 * 1024 * 1024
