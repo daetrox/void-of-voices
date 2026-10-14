@@ -1,5 +1,16 @@
 # Cambios
 
+## 0.2.3
+- **La app funciona ya fuera del equipo donde se desarrolló** (contribución de [@matsukiender-star](https://github.com/matsukiender-star)):
+  - **Iconos en blanco** en Fedora/Nobara y distros recientes: el Qt de PySide6 no dibuja Noto Color Emoji COLRv1. Se incluyen los emojis Twemoji y los iconos SVG de Lucide para toda la interfaz.
+  - **Micrófonos «(null)»** en sistemas en español: `pactl -f json` devuelve `(null)` en las descripciones con acentos; ahora se lee la salida de texto.
+  - **AppImage**: los programas del sistema que lanza la app (`pactl`, `parec`, `pacat`, `hyprctl`) ya no heredan la libstdc++ empaquetada (error `GLIBCXX_3.4.32 not found`).
+  - **Windows**: si VB-Cable queda como dispositivo predeterminado, ya no se usa como micrófono ni como salida para escuchar.
+- **Windows**: instalador único con tema oscuro (Inno Setup 6.7.3) que instala la app y, si falta VB-Cable, lo descarga de la web oficial verificando su SHA-256 y abre su instalador al terminar.
+- **Atajos**: sección propia «Atajos» con filas *voz o sonido + tecla* y «＋ Añadir atajo»; admite combinaciones (`Shift+1`, `Alt+F1`) y marca en rojo las teclas repetidas. Los atajos de sonidos pasan a ser globales. En **Hyprland** la app pone sus teclas con `hyprctl` sin pisar las ya existentes, y las quita al salir.
+- **Interfaz rediseñada**: menú *Panel, Voz conf, Mejora, Voces, Sonidos, Atajos, Ajustes*. El **Panel** añade medidores horizontales en dB y paneles rápidos de voces y sonidos (6×2, cambiables con clic derecho) que se adaptan al tamaño de la ventana. **Voz conf** reúne ajustes, efectos y ecualizador con «Guardar como voz…». Apartados **Personalizados** para voces y sonidos propios, cuyo icono puede ser un SVG, un emoji o una imagen propia que viaja dentro de los `.vopack`. Ya no hay botón GUARDAR: los ajustes se guardan solos.
+- **Pruebas**: el `selftest` comprueba ahora que la voz cambia de verdad (220 Hz → 440 Hz con +12 semitonos) y que la AppImage no pasa sus librerías a los programas del sistema; la CI compila y pasa el selftest en Linux y Windows.
+
 ## 0.2.2
 - Windows: instalación del micrófono virtual (VB-Cable) con un clic desde la app. Lo descarga de la web oficial, verifica su huella SHA-256, abre su instalador y detecta solo cuándo está listo. El instalador de la app ya no manda a descargarlo a mano.
 
