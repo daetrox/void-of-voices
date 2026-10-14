@@ -4,9 +4,8 @@ import os
 import shlex
 import shutil
 import sys
-from pathlib import Path
 
-from . import APP_ID, APP_NAME, ICON_PATH, IS_WINDOWS, RESOURCE_DIR
+from . import APP_ID, APP_NAME, ICON_PATH, IS_WINDOWS, RESOURCE_DIR, XDG_CONFIG_HOME, XDG_DATA_HOME
 
 
 def launch_command():
@@ -51,8 +50,8 @@ def remove_legacy_integration():
         except OSError:
             pass
         return
-    data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
-    cfg = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    data = XDG_DATA_HOME
+    cfg = XDG_CONFIG_HOME
     old_autostart = cfg / "autostart" / f"{old_id}.desktop"
     had_autostart = old_autostart.exists()
     for f in (data / "applications" / f"{old_id}.desktop",
@@ -70,7 +69,7 @@ def install_desktop_entry():
     También es necesario para que el portal de atajos globales reconozca la app."""
     if IS_WINDOWS:
         return
-    data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    data = XDG_DATA_HOME
     icon_dst = data / "icons" / "hicolor" / "scalable" / "apps" / f"{APP_ID}.svg"
     try:
         if ICON_PATH.exists() and (not icon_dst.exists() or icon_dst.read_bytes() != ICON_PATH.read_bytes()):
@@ -86,7 +85,7 @@ def install_desktop_entry():
 
 
 def _autostart_file():
-    cfg = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    cfg = XDG_CONFIG_HOME
     return cfg / "autostart" / f"{APP_ID}.desktop"
 
 
