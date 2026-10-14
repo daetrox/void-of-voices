@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QSlider, QTabWidget, QToolButton, QVBoxLayout, QWidget,
 )
 
-from . import ICON_DIR, USER_ICON_DIR
+from . import EMOJI_DIR, ICON_DIR, USER_ICON_DIR
 from .hotkeys import pretty, to_portal
 from .i18n import T
 
@@ -167,6 +167,19 @@ SLIDERS = {
 
 # ------------------------------------------------------------- widgets
 
+def emoji_svg(text):
+    """Archivo de Twemoji de un emoji («👏» → 1f44f.svg) o None. Los emojis
+    simples van sin el selector de variación FE0F; las secuencias con ZWJ, con él."""
+    if not text or text.isascii():
+        return None
+    cps = [f"{ord(c):x}" for c in text]
+    for name in ("-".join(cps), "-".join(c for c in cps if c != "fe0f")):
+        path = EMOJI_DIR / f"{name}.svg"
+        if path.is_file():
+            return path
+    return None
+
+
 @lru_cache(maxsize=None)
 def glyph_icon(text, size=28, color="#d9dcdf"):
     """Icono SVG de Lucide si ``text`` es su nombre («mic»), imagen del usuario
@@ -179,6 +192,11 @@ def glyph_icon(text, size=28, color="#d9dcdf"):
         if not img.isNull():
             img = img.scaled(int(size * 1.6), int(size * 1.6), Qt.KeepAspectRatio, Qt.SmoothTransformation)
             p.drawPixmap((pm.width() - img.width()) // 2, (pm.height() - img.height()) // 2, img)
+        p.end()
+        return QIcon(pm)
+    emoji = emoji_svg(text)
+    if emoji:
+        QSvgRenderer(str(emoji)).render(p, QRectF(size * 0.2, size * 0.2, size * 1.6, size * 1.6))
         p.end()
         return QIcon(pm)
     svg = ICON_DIR / f"{text}.svg"
