@@ -3,12 +3,18 @@
 - Linux: portal org.freedesktop.portal.GlobalShortcuts (KDE Plasma 6, GNOME 48+).
   El sistema muestra un diálogo la primera vez y el usuario cambia las teclas
   en la configuración del escritorio (ConfigureShortcuts).
+  En Hyprland el portal registra los atajos pero no les pone tecla: las pone
+  la app con hyprctl (HyprlandBinds).
 - Windows: RegisterHotKey de user32, con las teclas que elija el usuario.
 
 Los atajos se describen con el formato del portal: «CTRL+ALT+m», «CTRL+ALT+space».
 """
 
+import json
+import os
 import secrets
+import socket
+import subprocess
 import threading
 
 from PySide6.QtCore import QObject, Signal
@@ -44,20 +50,102 @@ def to_portal(qt_seq):
     return "+".join(out)
 
 
-def hyprland_binds(actions, lua=False):
-    """Líneas para la config de Hyprland (clásica o Lua): su portal registra
-    los atajos pero no les asigna teclas (ignora preferred_trigger)."""
-    lines = []
-    for sid, _, trig in actions:
-        if not trig:
-            continue
+def _lua_str(text):
+    """Literal de cadena Lua seguro: los nombres de voces propias pueden venir de
+    paquetes de otras personas y no deben poder inyectar código en Hyprland."""
+    out = []
+    for ch in text:
+        if ch in '"\\' or (ord(ch) < 128 and not ch.isprintable()):
+            out.append(f"\\{ord(ch)}")
+        elif ch.isprintable():
+            out.append(ch)
+    return '"' + "".join(out) + '"'
+
+
+class HyprlandBinds(QObject):
+    """Pone en Hyprland, con hyprctl, las teclas de los atajos de la app (su
+    portal los registra sin tecla). No toca teclas que Hyprland ya use, y como
+    los binds hechos así se pierden al recargar la config, los vuelve a poner."""
+
+    reloaded = Signal()
+    MODS = {"SHIFT": 1, "CTRL": 4, "ALT": 8, "LOGO": 64}
+
+    def __init__(self, applied=None, parent=None):
+        super().__init__(parent)
+        cfg = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+        self.lua = os.path.exists(os.path.join(cfg, "hypr", "hyprland.lua"))
+        # trigger → id de los binds que puso la app (se guarda en la config por si
+        # la app se cerró sin quitarlos).
+        self.applied = dict(applied or {})
+        self._wanted = None
+        threading.Thread(target=self._listen, daemon=True).start()
+
+    @staticmethod
+    def _ctl(*args):
+        try:
+            return subprocess.run(["hyprctl", *args], capture_output=True, text=True, timeout=5).stdout.strip()
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+
+    def _cmd(self, trig, sid=None):
+        """Orden de hyprctl para poner (con sid) o quitar (sin sid) un bind."""
         *mods, key = trig.split("+")
+        mods = ["SUPER" if m == "LOGO" else m for m in mods]
         key = key.upper() if len(key) == 1 else key
-        if lua:
-            lines.append(f'hl.bind("{" + ".join([*mods, key])}", hl.dsp.global("{APP_ID}:{sid}"))')
-        else:
-            lines.append(f"bind = {' '.join(mods)}, {key}, global, {APP_ID}:{sid}")
-    return "\n".join(lines)
+        if self.lua:
+            k = _lua_str(" + ".join([*mods, key]))
+            return ("eval", f"hl.bind({k}, hl.dsp.global({_lua_str(f'{APP_ID}:{sid}')}))" if sid
+                    else f"hl.unbind({k})")
+        if sid is None:
+            return ("keyword", "unbind", f"{' '.join(mods)}, {key}")
+        return ("keyword", "bind", f"{' '.join(mods)}, {key}, global, {APP_ID}:{sid}")
+
+    def apply(self, actions):
+        """Pone las teclas de ``actions``; devuelve los ids cuya tecla no se pudo
+        poner (ya la usa Hyprland o no la entiende)."""
+        wanted = {sid: trig for sid, _, trig in actions if trig}
+        if wanted == self._wanted:
+            return self._busy
+        for trig in self.applied:
+            self._ctl(*self._cmd(trig))
+        self.applied = {}
+        try:
+            taken = {(b["modmask"], b["key"].lower()) for b in json.loads(self._ctl("binds", "-j") or "[]")}
+        except (ValueError, KeyError, TypeError):
+            taken = set()
+        busy = set()
+        for sid, trig in wanted.items():
+            *mods, key = trig.split("+")
+            mask = sum(self.MODS.get(m, 0) for m in mods)
+            bad = not self.lua and any(c in sid for c in ",\n")   # la sintaxis clásica separa por comas
+            if bad or trig in self.applied or (mask, key.lower()) in taken or \
+                    self._ctl(*self._cmd(trig, sid)) != "ok":
+                busy.add(sid)
+            else:
+                self.applied[trig] = sid
+        self._wanted, self._busy = wanted, busy
+        return busy
+
+    def clear(self):
+        for trig in self.applied:
+            self._ctl(*self._cmd(trig))
+        self.applied, self._wanted = {}, None
+
+    def _listen(self):
+        """Avisa cuando Hyprland recarga su config (y borra los binds puestos)."""
+        sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+        run = os.environ.get("XDG_RUNTIME_DIR", "")
+        if not sig:
+            return
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+                sock.connect(os.path.join(run, "hypr", sig, ".socket2.sock"))
+                for line in sock.makefile(encoding="utf-8", errors="replace"):
+                    if line.startswith("configreloaded"):
+                        self.applied, self._wanted = {}, None
+                        self.reloaded.emit()
+        except OSError:
+            pass
 
 
 class GlobalHotkeys(QObject):

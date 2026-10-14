@@ -14,7 +14,7 @@ from PySide6.QtGui import QAction, QDesktopServices, QFontDatabase, QIcon, QKeyS
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
-    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
+    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
     QProgressBar, QPushButton, QSizePolicy, QSpinBox, QStackedWidget, QSystemTrayIcon,
     QToolButton, QVBoxLayout, QWidget,
 )
@@ -25,7 +25,7 @@ from . import soundboard as sb
 from .dsp import (ENHANCE_PRESETS, EQ_BANDS, QUICK_VOICES, VOICE_BANK, VOICE_KEYS, Denoiser,
                   Params, all_voices)
 from .engine import AudioEngine, Preview
-from .hotkeys import ACTIONS, GlobalHotkeys, hyprland_binds, pretty, to_portal
+from .hotkeys import ACTIONS, GlobalHotkeys, HyprlandBinds, pretty, to_portal
 from .i18n import LANGUAGES, T, language, set_language
 from .widgets import (ACCENT, SLIDERS, STYLE, CheckListDialog, LevelMeter, ParamSlider, RoundToggle,
                       IconPicker, KeyButton, card, dark_palette, glyph_icon, iconize, key_capture, scroll_page)
@@ -95,6 +95,9 @@ class MainWindow(QMainWindow):
         self.window_state = cfg.get("windows", {})
         self.hotkey_triggers = default_hotkeys(cfg)
         self.key_buttons = {}      # id → KeyButton
+        self.hypr_binds = HyprlandBinds(cfg.get("hypr_binds"), self) if IS_HYPRLAND else None
+        if self.hypr_binds:
+            self.hypr_binds.reloaded.connect(self._show_triggers)
         self._fallback_shortcuts = []
         self._previews = {}
         self._toggles = []         # (botón de encendido, botón de silencio) de otras ventanas
@@ -524,17 +527,6 @@ class MainWindow(QMainWindow):
         self.hotkey_status = QLabel(objectName="muted")
         self.hotkey_status.setWordWrap(True)
         c.addWidget(self.hotkey_status)
-        self.hypr_box = QWidget()
-        hl = QVBoxLayout(self.hypr_box)
-        hl.setContentsMargins(0, 0, 0, 0)
-        self.hypr_text = QPlainTextEdit(readOnly=True)
-        self.hypr_text.setMaximumHeight(130)
-        hl.addWidget(self.hypr_text)
-        copy = QPushButton(T("Copiar líneas"), objectName="ghost")
-        copy.clicked.connect(lambda: QApplication.clipboard().setText(self.hypr_text.toPlainText()))
-        hl.addWidget(copy, 0, Qt.AlignLeft)
-        self.hypr_box.setVisible(False)
-        c.addWidget(self.hypr_box)
         self.hotkey_filter = QLineEdit(placeholderText=T("Buscar acción, voz o sonido…"))
         self.hotkey_filter.textChanged.connect(self._filter_hotkeys)
         c.addWidget(self.hotkey_filter)
@@ -1200,19 +1192,22 @@ class MainWindow(QMainWindow):
             head.setVisible(head in shown)
 
     def _show_triggers(self):
-        """Teclas en los botones, conflictos en rojo y líneas para Hyprland."""
+        """Teclas en los botones y conflictos en rojo; en Hyprland, además, las pone."""
         system = self.hotkeys.backend == "portal" and system_hotkeys_in_desktop()
+        busy = set()
+        if self.hypr_binds and self.hotkeys.backend == "portal":
+            before = dict(self.hypr_binds.applied)
+            busy = self.hypr_binds.apply(self._hotkey_actions())
+            if self.hypr_binds.applied != before:
+                self._save_config()
         used = Counter(self.hotkey_triggers.get(s, "").lower() for s in self.key_buttons)
         for sid, key in self.key_buttons.items():
             t = self.hotkey_triggers.get(sid, "")
             key.setEnabled(not system)
             key.set_trigger(t, (self.hotkeys.triggers.get(sid) or "—") if system else None)
-            key.set_conflict(not system and bool(t) and used[t.lower()] > 1)
-        hypr = self.hotkeys.backend == "portal" and IS_HYPRLAND
-        self.hypr_box.setVisible(hypr)
-        if hypr:
-            cfg = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "hypr"
-            self.hypr_text.setPlainText(hyprland_binds(self._hotkey_actions(), lua=(cfg / "hyprland.lua").exists()))
+            key.set_conflict(not system and bool(t) and (used[t.lower()] > 1 or sid in busy))
+            key.setToolTip(T("Hyprland ya usa esta tecla para otra cosa: elige otra.") if sid in busy
+                           else T("Esta tecla ya la usa otra acción.") if key.property("conflict") else "")
 
     def _set_hotkey(self, sid, trigger):
         self.hotkey_triggers[sid] = trigger
@@ -1235,8 +1230,8 @@ class MainWindow(QMainWindow):
 
     def _on_hotkeys_changed(self, triggers):
         if self.hotkeys.backend == "portal" and IS_HYPRLAND:
-            self.hotkey_status.setText(T("Hyprland no asigna teclas a los atajos de las apps: copia estas líneas "
-                                         "en tu configuración de Hyprland (y otra vez si cambias alguna tecla)."))
+            self.hotkey_status.setText(T("Atajos globales activos. Las teclas en rojo ya las usa Hyprland u "
+                                         "otra acción: pasa el ratón por encima para saber cuál."))
         elif self.hotkeys.backend == "portal":
             self.hotkey_status.setText(T("Atajos globales activos. Puedes cambiar las teclas en la "
                                          "configuración del sistema."))
@@ -1607,6 +1602,7 @@ class MainWindow(QMainWindow):
             "custom_voices": self.custom_voices,
             "voice_slots": self.voice_slots,
             "hotkeys": self.hotkey_triggers,
+            "hypr_binds": self.hypr_binds.applied if self.hypr_binds else {},
             "sounds": self.sound_cfg,
             "user_sounds": [{k: u[k] for k in ("id", "path", "name", "icon", "category")} for u in self.user_sounds],
             "sfx_volume": self.sfx_volume.value(),
@@ -1631,6 +1627,8 @@ class MainWindow(QMainWindow):
                                                   "Usa «Salir» en su menú para cerrarme del todo."),
                                       QIcon(str(ICON_PATH)), 5000)
             return
+        if self.hypr_binds:
+            self.hypr_binds.clear()
         self._save_config()
         for w in (self.quick, self.panel):
             if w:

@@ -131,8 +131,6 @@ EN = {
     "Atajos globales activos. Puedes cambiar las teclas en la configuración del sistema.":
         "Global shortcuts active. You can change the keys in your system settings.",
     "Atajos globales activos.": "Global shortcuts active.",
-    "Hyprland no asigna teclas a los atajos de las apps. Añade estas líneas a tu configuración de Hyprland:":
-        "Hyprland doesn't assign keys to app shortcuts. Add these lines to your Hyprland config:",
     "Atajos ocupados por otra app: {}": "Shortcuts taken by another app: {}",
     "Idioma:": "Language:",
     "El idioma se aplicará al reiniciar la app. ¿Reiniciar ahora?": "The language will change when the app restarts. Restart now?",
@@ -181,11 +179,13 @@ EN = {
     "No se pudo usar la imagen: {}": "Couldn't use the image: {}", "Cancelar": "Cancel",
     "Funcionan aunque estés dentro de un juego o de otra app. Haz clic en una tecla y pulsa la nueva; Retroceso la quita y Esc cancela.":
         "They work even inside a game or another app. Click a key and press the new one; Backspace clears it, Esc cancels.",
-    "Copiar líneas": "Copy lines", "Buscar acción, voz o sonido…": "Search action, voice or sound…",
+    "Buscar acción, voz o sonido…": "Search action, voice or sound…",
     "Restablecer teclas": "Reset keys", "¿Volver a las teclas predeterminadas?": "Go back to the default keys?",
     "General": "General",
     "Las que salen en el selector de voces y en el menú de la bandeja.": "The ones shown in the voice picker and the tray menu.",
-    "Hyprland no asigna teclas a los atajos de las apps: copia estas líneas en tu configuración de Hyprland (y otra vez si cambias alguna tecla).":
-        "Hyprland doesn't assign keys to app shortcuts: copy these lines into your Hyprland config (again if you change a key).",
+    "Atajos globales activos. Las teclas en rojo ya las usa Hyprland u otra acción: pasa el ratón por encima para saber cuál.":
+        "Global shortcuts active. Keys in red are already used by Hyprland or another action: hover to see which.",
+    "Hyprland ya usa esta tecla para otra cosa: elige otra.": "Hyprland already uses this key for something else: pick another.",
+    "Esta tecla ya la usa otra acción.": "Another action already uses this key.",
     "> Pulsa una tecla <": "> Press a key <",
 }
