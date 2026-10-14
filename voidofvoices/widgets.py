@@ -42,6 +42,8 @@ QPushButton#pill[warn="true"]:checked {{ background: #5e2f2f; border-color: #f07
 #banner {{ background: #3a3220; border: 1px solid #806a2e; border-radius: 8px; }}
 #banner QLabel {{ color: #f3e3b5; }}
 #key {{ color: {ACCENT}; font-family: monospace; }}
+QToolButton#deckDots {{ background: transparent; border: none; padding: 3px; margin: 2px; }}
+QToolButton#deckDots:hover {{ background: #3a3c40; border-radius: 5px; }}
 QPushButton#keybind {{
     background: #1c1e20; border: 1px solid #45484d; border-bottom-width: 3px; border-radius: 6px;
     padding: 5px 12px; color: #e8eaec; font-weight: 600;

@@ -135,7 +135,7 @@ class QuickVoicesWindow(_ToolWindow):
             b = c.voice_card(name, owner="quick", small=True)
             key = c.trigger_text(f"voice:{name}")
             b.setText(f"{b.text()}\n{key}" if key else b.text())
-            self.slots.addWidget(b, 0, i)
+            self.slots.addWidget(b, i // 5, i % 5)
         self._items = []
         for i, name in enumerate(c.voice_names()):
             b = c.voice_card(name, owner="quick", small=True)

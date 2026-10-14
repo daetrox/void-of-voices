@@ -191,4 +191,7 @@ EN = {
     "＋ Añadir atajo": "＋ Add shortcut", "(ya no existe)": "(no longer exists)",
     "Esta tecla ya la usa otro atajo.": "Another shortcut already uses this key.",
     "¿Quitar tus atajos y volver a las teclas predeterminadas?": "Remove your shortcuts and go back to the default keys?",
+    "Panel": "Panel", "Voz conf": "Voice setup", "Sonidos rápidos": "Quick sounds",
+    "Clic para usar; ⋮ para cambiar la casilla.": "Click to use; ⋮ to change the slot.",
+    "Cambiar casilla": "Change slot", "Vacío": "Empty", "Vaciar casilla": "Clear slot",
 }
