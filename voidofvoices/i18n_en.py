@@ -177,15 +177,18 @@ EN = {
     "Una imagen tuya: PNG, JPG, SVG, WebP o GIF de hasta 2 MB.": "Your own image: PNG, JPG, SVG, WebP or GIF up to 2 MB.",
     "Elegir imagen…": "Choose image…", "Elegir imagen": "Choose image", "Imágenes": "Images",
     "No se pudo usar la imagen: {}": "Couldn't use the image: {}", "Cancelar": "Cancel",
-    "Funcionan aunque estés dentro de un juego o de otra app. Haz clic en una tecla y pulsa la nueva; Retroceso la quita y Esc cancela.":
-        "They work even inside a game or another app. Click a key and press the new one; Backspace clears it, Esc cancels.",
-    "Buscar acción, voz o sonido…": "Search action, voice or sound…",
-    "Restablecer teclas": "Reset keys", "¿Volver a las teclas predeterminadas?": "Go back to the default keys?",
+    
+    "Restablecer teclas": "Reset keys",
     "General": "General",
     "Las que salen en el selector de voces y en el menú de la bandeja.": "The ones shown in the voice picker and the tray menu.",
     "Atajos globales activos. Las teclas en rojo ya las usa Hyprland u otra acción: pasa el ratón por encima para saber cuál.":
         "Global shortcuts active. Keys in red are already used by Hyprland or another action: hover to see which.",
     "Hyprland ya usa esta tecla para otra cosa: elige otra.": "Hyprland already uses this key for something else: pick another.",
-    "Esta tecla ya la usa otra acción.": "Another action already uses this key.",
     "> Pulsa una tecla <": "> Press a key <",
+    "Atajos": "Shortcuts", "Tus atajos": "Your shortcuts", "Atajos generales": "General shortcuts",
+    "Elige una voz o un sonido y la tecla que lo activa; funcionan aunque estés dentro de un juego. Haz clic en la tecla y pulsa la nueva (también combinaciones como Shift+1 o Alt+F1); Retroceso la quita y Esc cancela.":
+        "Pick a voice or a sound and the key that triggers it; they work even inside a game. Click the key and press the new one (combinations like Shift+1 or Alt+F1 too); Backspace clears it, Esc cancels.",
+    "＋ Añadir atajo": "＋ Add shortcut", "(ya no existe)": "(no longer exists)",
+    "Esta tecla ya la usa otro atajo.": "Another shortcut already uses this key.",
+    "¿Quitar tus atajos y volver a las teclas predeterminadas?": "Remove your shortcuts and go back to the default keys?",
 }

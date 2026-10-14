@@ -35,23 +35,40 @@ DEFAULT_SLOTS = ["Robot", "Demonio", "Femenina", "Ardilla", "Radio"]
 IS_HYPRLAND = "hyprland" in os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
 
 
-def default_hotkeys(cfg):
-    """Atajos: los generales, F1–F12 para las 12 primeras voces del banco y los
-    guardados, convirtiendo los de versiones anteriores (voces rápidas 1–5 y
-    atajos de sonidos que solo funcionaban con la ventana activa)."""
-    trig = {sid: t for sid, _, t in ACTIONS}
-    trig.update({f"voice:{n}": f"F{i}" for i, n in enumerate(list(all_voices())[:12], start=1)})
+def load_hotkeys(cfg):
+    """(atajos generales, [[voz o sonido, tecla], …]) desde la config.
+
+    Convierte los formatos anteriores: «Voz rápida 1–5», atajos de sonidos y
+    una tecla por voz (sin los F1–F12 que ponía por defecto la versión previa)."""
+    general = {sid: t for sid, _, t in ACTIONS}
     saved = dict(cfg.get("hotkeys", {}))
-    slots = cfg.get("voice_slots", DEFAULT_SLOTS)
-    for i in range(5):
-        old = saved.pop(f"voice_{i + 1}", None)
-        if old and i < len(slots) and slots[i]:
-            saved.setdefault(f"voice:{slots[i]}", old)
-    for sid, m in cfg.get("sounds", {}).items():
-        if m.get("hotkey"):
-            saved.setdefault(f"sound:{sid}", to_portal(m.pop("hotkey")))
-    trig.update(saved)
-    return trig
+    binds = [list(b) for b in cfg.get("bindings", []) if isinstance(b, (list, tuple)) and len(b) == 2]
+    if "bindings" not in cfg:
+        old_defaults = {f"voice:{n}": f"F{i}" for i, n in enumerate(list(all_voices())[:12], start=1)}
+        slots = cfg.get("voice_slots", DEFAULT_SLOTS)
+        for i in range(5):
+            t = saved.pop(f"voice_{i + 1}", None)
+            if t and i < len(slots) and slots[i]:
+                binds.append([f"voice:{slots[i]}", t])
+        for sid, m in cfg.get("sounds", {}).items():
+            if m.get("hotkey"):
+                binds.append([f"sound:{sid}", to_portal(m.pop("hotkey"))])
+        for k in [k for k in saved if k.startswith(("voice:", "sound:"))]:
+            t = saved.pop(k)
+            if t and old_defaults.get(k) != t and [k, t] not in binds:
+                binds.append([k, t])
+        if not binds:
+            binds = [[f"voice:{next(iter(all_voices()))}", ""]]   # una fila de ejemplo
+    general.update({k: v for k, v in saved.items() if k in general})
+    return general, binds
+
+
+def binding_target(sid):
+    """«voice:Robot#2» → «voice:Robot» (el número distingue filas con el mismo destino)."""
+    head, sep, tail = sid.rpartition("#")
+    return head if sep and tail.isdigit() else sid
+
+
 MY_SOUNDS = "Mis sonidos"
 
 
@@ -93,7 +110,7 @@ class MainWindow(QMainWindow):
         self.sound_cfg = {}        # id → {name, icon, volume, loop, hotkey}
         self.user_sounds = []
         self.window_state = cfg.get("windows", {})
-        self.hotkey_triggers = default_hotkeys(cfg)
+        self.hotkey_triggers, self.bindings = load_hotkeys(cfg)
         self.key_buttons = {}      # id → KeyButton
         self.hypr_binds = HyprlandBinds(cfg.get("hypr_binds"), self) if IS_HYPRLAND else None
         if self.hypr_binds:
@@ -117,7 +134,7 @@ class MainWindow(QMainWindow):
         right.addWidget(self._build_header())
         self.pages = QStackedWidget()
         for build in (self._page_mic, self._page_voices, self._page_sounds, self._page_effects,
-                      self._page_enhance, self._page_eq, self._page_settings):
+                      self._page_enhance, self._page_eq, self._page_hotkeys, self._page_settings):
             self.pages.addWidget(build())
         right.addWidget(self.pages, 1)
         self.status = QLabel(T("Apagado"), objectName="status")
@@ -146,7 +163,8 @@ class MainWindow(QMainWindow):
         lay.setSpacing(2)
         self.nav = QButtonGroup(self)
         items = [("mic", "Micrófono"), ("drama", "Voces"), ("volume-2", "Sonidos"), ("sparkles", "Efectos"),
-                 ("headphones", "Mejora"), ("sliders-vertical", "Ecualizador"), ("settings", "Ajustes")]
+                 ("headphones", "Mejora"), ("sliders-vertical", "Ecualizador"), ("keyboard", "Atajos"),
+                 ("settings", "Ajustes")]
         for i, (glyph, name) in enumerate(items):
             b = QToolButton(objectName="nav")
             b.setText(T(name))
@@ -471,6 +489,43 @@ class MainWindow(QMainWindow):
         return area
 
     # ------------------------------------------------------------ página: ajustes
+    def _page_hotkeys(self):
+        area, lay = scroll_page()
+        box, c = card("Tus atajos",
+                      "Elige una voz o un sonido y la tecla que lo activa; funcionan aunque estés dentro de un "
+                      "juego. Haz clic en la tecla y pulsa la nueva (también combinaciones como Shift+1 o "
+                      "Alt+F1); Retroceso la quita y Esc cancela.")
+        self.hotkey_status = QLabel(objectName="muted")
+        self.hotkey_status.setWordWrap(True)
+        c.addWidget(self.hotkey_status)
+        self.binding_grid = QGridLayout()
+        self.binding_grid.setHorizontalSpacing(10)
+        self.binding_grid.setColumnStretch(3, 1)
+        c.addLayout(self.binding_grid)
+        add = iconize(QPushButton(T("＋ Añadir atajo"), objectName="ghost"))
+        add.clicked.connect(self._add_binding)
+        c.addWidget(add, 0, Qt.AlignLeft)
+        lay.addWidget(box)
+
+        box, c = card("Atajos generales")
+        self.general_grid = QGridLayout()
+        self.general_grid.setHorizontalSpacing(12)
+        self.general_grid.setColumnStretch(2, 1)
+        c.addLayout(self.general_grid)
+        row = QHBoxLayout()
+        if system_hotkeys_in_desktop():
+            b = QPushButton(T("Cambiar teclas en el sistema…"), objectName="ghost")
+            b.clicked.connect(self.hotkeys.configure)
+            row.addWidget(b)
+        reset = QPushButton(T("Restablecer teclas"), objectName="ghost")
+        reset.clicked.connect(self._reset_hotkeys)
+        row.addWidget(reset)
+        row.addStretch()
+        c.addLayout(row)
+        lay.addWidget(box)
+        lay.addStretch()
+        return area
+
     def _page_settings(self):
         area, lay = scroll_page()
 
@@ -519,31 +574,6 @@ class MainWindow(QMainWindow):
         info.setWordWrap(True)
         c.addSpacing(6)
         c.addWidget(info)
-        lay.addWidget(box)
-
-        box, c = card("Atajos de teclado",
-                      "Funcionan aunque estés dentro de un juego o de otra app. Haz clic en una tecla y "
-                      "pulsa la nueva; Retroceso la quita y Esc cancela.")
-        self.hotkey_status = QLabel(objectName="muted")
-        self.hotkey_status.setWordWrap(True)
-        c.addWidget(self.hotkey_status)
-        self.hotkey_filter = QLineEdit(placeholderText=T("Buscar acción, voz o sonido…"))
-        self.hotkey_filter.textChanged.connect(self._filter_hotkeys)
-        c.addWidget(self.hotkey_filter)
-        self.hotkey_grid = QGridLayout()
-        self.hotkey_grid.setHorizontalSpacing(12)
-        self.hotkey_grid.setColumnStretch(3, 1)
-        c.addLayout(self.hotkey_grid)
-        row = QHBoxLayout()
-        if system_hotkeys_in_desktop():
-            b = QPushButton(T("Cambiar teclas en el sistema…"), objectName="ghost")
-            b.clicked.connect(self.hotkeys.configure)
-            row.addWidget(b)
-        reset = QPushButton(T("Restablecer teclas"), objectName="ghost")
-        reset.clicked.connect(self._reset_hotkeys)
-        row.addWidget(reset)
-        row.addStretch()
-        c.addLayout(row)
         lay.addWidget(box)
 
         box, c = card("Voces rápidas", "Las que salen en el selector de voces y en el menú de la bandeja.")
@@ -701,7 +731,7 @@ class MainWindow(QMainWindow):
         if act is a_del:
             del self.custom_voices[name]
             self.voice_slots = [s if s != name else "" for s in self.voice_slots]
-            self.hotkey_triggers.pop(f"voice:{name}", None)
+            self.bindings = [b for b in self.bindings if b[0] != f"voice:{name}"]
         elif act is a_ren:
             new, ok = QInputDialog.getText(self, T("Renombrar"), T("Nombre:"), text=name)
             new = new.strip()[:40]
@@ -710,8 +740,9 @@ class MainWindow(QMainWindow):
             new = self._unique_voice_name(new)
             self.custom_voices[new] = self.custom_voices.pop(name)
             self.voice_slots = [s if s != name else new for s in self.voice_slots]
-            if f"voice:{name}" in self.hotkey_triggers:
-                self.hotkey_triggers[f"voice:{new}"] = self.hotkey_triggers.pop(f"voice:{name}")
+            for b in self.bindings:
+                if b[0] == f"voice:{name}":
+                    b[0] = f"voice:{new}"
             if self.current_voice == name:
                 self.current_voice = new
         elif act is a_exp:
@@ -974,7 +1005,8 @@ class MainWindow(QMainWindow):
         a_loop.setCheckable(True)
         a_loop.setChecked(m["loop"])
         a_key = menu.addAction(T("Asignar atajo de teclado…"))
-        a_nokey = menu.addAction(T("Quitar atajo")) if self.hotkey_triggers.get(f"sound:{sid}") else None
+        a_nokey = menu.addAction(T("Quitar atajo")) if any(b[0] == f"sound:{sid}" for b in self.bindings) \
+            else None
         a_reset = menu.addAction(T("Restablecer")) if self.sound_cfg.get(sid) else None
         a_del = None
         if not e.get("builtin"):
@@ -1000,9 +1032,15 @@ class MainWindow(QMainWindow):
         elif act is a_key:
             key = key_capture(self, T("Atajo de teclado"), T("Pulsa la combinación para «{}»:").format(m["name"]))
             if key:
-                self._set_hotkey(f"sound:{sid}", to_portal(key))
+                row = next((b for b in self.bindings if b[0] == f"sound:{sid}"), None)
+                if row:
+                    row[1] = to_portal(key)
+                else:
+                    self.bindings.append([f"sound:{sid}", to_portal(key)])
+                self._hotkeys_changed()
         elif act is a_nokey:
-            self._set_hotkey(f"sound:{sid}", "")
+            self.bindings = [b for b in self.bindings if b[0] != f"sound:{sid}"]
+            self._hotkeys_changed()
         elif act is a_reset:
             self.sound_cfg.pop(sid, None)
             self._rebuild_sounds()
@@ -1012,6 +1050,7 @@ class MainWindow(QMainWindow):
             sb.delete_user_file(e)
             self.user_sounds = [u for u in self.user_sounds if u["id"] != sid]
             self.sound_cfg.pop(sid, None)
+            self.bindings = [b for b in self.bindings if b[0] != f"sound:{sid}"]
             self._rebuild_sounds()
             self._save_config()
 
@@ -1138,95 +1177,119 @@ class MainWindow(QMainWindow):
         if not self.hotkeys.start(self._hotkey_actions()):
             self._enable_fallback_shortcuts(T("Atajos globales no disponibles en este sistema."))
 
-    def _hotkey_items(self):
-        """[(sección, id, texto, icono)] de todo lo que puede tener atajo."""
-        items = [("General", sid, T(desc), None) for sid, desc, _ in ACTIONS]
-        items += [("Voces", f"voice:{n}", self.voice_label(n), self._voice_icon(n)) for n in self.voice_names()]
+    def _targets(self):
+        """[(destino, texto, icono)] de las voces y los sonidos que pueden tener atajo."""
+        out = [(f"voice:{n}", self.voice_label(n), self._voice_icon(n)) for n in self.voice_names()]
         for sid, e in getattr(self, "_entries", {}).items():
             m = self._sound_meta(e)
-            items.append(("Sonidos", f"sound:{sid}", m["name"], m["icon"]))
-        return items
+            out.append((f"sound:{sid}", m["name"], m["icon"]))
+        return out
 
     def _hotkey_actions(self):
-        return [(sid, text, self.hotkey_triggers.get(sid, "")) for _, sid, text, _ in self._hotkey_items()]
+        """[(id, descripción, tecla)] para registrar: generales y una por fila."""
+        labels = {t: text for t, text, _ in self._targets()}
+        acts = [(sid, T(desc), self.hotkey_triggers.get(sid, "")) for sid, desc, _ in ACTIONS]
+        # ponytail: el id lleva el número de fila; en KDE/GNOME quitar una fila renumera las siguientes.
+        acts += [(f"{t}#{i}", labels.get(t, t), trig) for i, (t, trig) in enumerate(self.bindings) if t]
+        return acts
 
     def _build_hotkey_rows(self):
-        g = self.hotkey_grid
-        while g.count():
-            w = g.takeAt(0).widget()
-            if w:
-                w.deleteLater()
-        self.key_buttons, self._hotkey_rows = {}, []
-        r, section, head = 0, None, None
-        for sec, sid, text, icon in self._hotkey_items():
-            if sec != section:
-                section = sec
-                head = QLabel(T(sec), objectName="category")
-                g.addWidget(head, r, 0, 1, 3)
-                r += 1
-            ic = QLabel()
-            if icon:
-                ic.setPixmap(glyph_icon(icon, 18, ACCENT).pixmap(18, 18))
-            label = QLabel(text)
+        for grid in (self.binding_grid, self.general_grid):
+            while grid.count():
+                w = grid.takeAt(0).widget()
+                if w:
+                    w.deleteLater()
+        self.key_buttons = {}
+        targets = self._targets()
+        for i, (target, trig) in enumerate(self.bindings):
+            combo = QComboBox()
+            combo.setMinimumWidth(230)
+            combo.setIconSize(QSize(18, 18))
+            for n, (t, text, icon) in enumerate(targets):
+                if n and t.startswith("sound:") and not targets[n - 1][0].startswith("sound:"):
+                    combo.insertSeparator(combo.count())
+                combo.addItem(glyph_icon(icon, 18, ACCENT), text, t)
+            if combo.findData(target) < 0:
+                combo.addItem(T("(ya no existe)"), target)
+            combo.setCurrentIndex(combo.findData(target))
+            combo.currentIndexChanged.connect(lambda _=0, i=i, c=combo: self._set_binding(i, c.currentData(), None))
+            key = KeyButton(trig)
+            key.changed.connect(lambda t, i=i: self._set_binding(i, None, t))
+            rm = QPushButton(objectName="ghost")
+            rm.setIcon(glyph_icon("trash-2", 16))
+            rm.setToolTip(T("Quitar atajo"))
+            rm.clicked.connect(lambda _=False, i=i: self._remove_binding(i))
+            self.binding_grid.addWidget(combo, i, 0)
+            self.binding_grid.addWidget(key, i, 1)
+            self.binding_grid.addWidget(rm, i, 2)
+            self.key_buttons[f"{target}#{i}"] = key
+        for r, (sid, desc, _) in enumerate(ACTIONS):
             key = KeyButton(self.hotkey_triggers.get(sid, ""))
             key.changed.connect(lambda t, s=sid: self._set_hotkey(s, t))
-            g.addWidget(ic, r, 0)
-            g.addWidget(label, r, 1)
-            g.addWidget(key, r, 2)
+            self.general_grid.addWidget(QLabel(T(desc)), r, 0)
+            self.general_grid.addWidget(key, r, 1)
             self.key_buttons[sid] = key
-            self._hotkey_rows.append((text.lower(), (ic, label, key), head))
-            r += 1
         self._show_triggers()
-        self._filter_hotkeys(self.hotkey_filter.text())
-
-    def _filter_hotkeys(self, text):
-        words = text.lower().split()
-        shown = set()
-        for name, widgets, head in self._hotkey_rows:
-            ok = all(w in name for w in words)
-            for w in widgets:
-                w.setVisible(ok)
-            if ok:
-                shown.add(head)
-        for _, _, head in self._hotkey_rows:
-            head.setVisible(head in shown)
 
     def _show_triggers(self):
         """Teclas en los botones y conflictos en rojo; en Hyprland, además, las pone."""
         system = self.hotkeys.backend == "portal" and system_hotkeys_in_desktop()
         busy = set()
+        actions = self._hotkey_actions()
         if self.hypr_binds and self.hotkeys.backend == "portal":
             before = dict(self.hypr_binds.applied)
-            busy = self.hypr_binds.apply(self._hotkey_actions())
+            busy = self.hypr_binds.apply(actions)
             if self.hypr_binds.applied != before:
                 self._save_config()
-        used = Counter(self.hotkey_triggers.get(s, "").lower() for s in self.key_buttons)
+        trig = {sid: t for sid, _, t in actions}
+        used = Counter(t.lower() for t in trig.values() if t)
         for sid, key in self.key_buttons.items():
-            t = self.hotkey_triggers.get(sid, "")
+            t = trig.get(sid, "")
             key.setEnabled(not system)
             key.set_trigger(t, (self.hotkeys.triggers.get(sid) or "—") if system else None)
             key.set_conflict(not system and bool(t) and (used[t.lower()] > 1 or sid in busy))
             key.setToolTip(T("Hyprland ya usa esta tecla para otra cosa: elige otra.") if sid in busy
-                           else T("Esta tecla ya la usa otra acción.") if key.property("conflict") else "")
+                           else T("Esta tecla ya la usa otro atajo.") if key.property("conflict") else "")
 
-    def _set_hotkey(self, sid, trigger):
-        self.hotkey_triggers[sid] = trigger
+    def _hotkeys_changed(self):
+        """Tras cambiar atajos: guardar, registrarlos de nuevo y refrescar lo que los muestra."""
         self._save_config()
         self.hotkeys.stop()
         self._start_hotkeys()
-        if sid.startswith("sound:"):
-            self._rebuild_sounds()
-        else:
-            self._show_triggers()
+        self._rebuild_sounds()          # etiquetas «⌨ tecla» de los sonidos y filas de atajos
         if self.quick:
             self.quick.rebuild()
 
+    def _set_hotkey(self, sid, trigger):
+        self.hotkey_triggers[sid] = trigger
+        self._hotkeys_changed()
+
+    def _set_binding(self, i, target, trigger):
+        if i < len(self.bindings):
+            if target is not None:
+                self.bindings[i][0] = target
+            if trigger is not None:
+                self.bindings[i][1] = trigger
+            self._hotkeys_changed()
+
+    def _add_binding(self):
+        used = {t for t, _ in self.bindings}
+        target = next((t for t, _, _ in self._targets() if t not in used), "")
+        self.bindings.append([target, ""])
+        self._hotkeys_changed()
+        self.key_buttons[f"{target}#{len(self.bindings) - 1}"].click()   # a pulsar la tecla directamente
+
+    def _remove_binding(self, i):
+        if i < len(self.bindings):
+            del self.bindings[i]
+            self._hotkeys_changed()
+
     def _reset_hotkeys(self):
-        if QMessageBox.question(self, APP_NAME, T("¿Volver a las teclas predeterminadas?")) != QMessageBox.Yes:
+        if QMessageBox.question(self, APP_NAME, T("¿Quitar tus atajos y volver a las teclas "
+                                                  "predeterminadas?")) != QMessageBox.Yes:
             return
-        self.hotkey_triggers = default_hotkeys({"voice_slots": self.voice_slots})
-        self._set_hotkey("toggle_voice", self.hotkey_triggers["toggle_voice"])
-        self._rebuild_sounds()
+        self.hotkey_triggers, self.bindings = load_hotkeys({})
+        self._hotkeys_changed()
 
     def _on_hotkeys_changed(self, triggers):
         if self.hotkeys.backend == "portal" and IS_HYPRLAND:
@@ -1253,7 +1316,7 @@ class MainWindow(QMainWindow):
             sc.setEnabled(False)
             sc.deleteLater()
         self._fallback_shortcuts = []
-        for sid, trig in self.hotkey_triggers.items():
+        for sid, _, trig in self._hotkey_actions():
             if not trig:
                 continue
             sc = QShortcut(QKeySequence(pretty(trig).replace("Espacio", "Space")), self)
@@ -1264,13 +1327,17 @@ class MainWindow(QMainWindow):
         self.hotkey_status.setText(reason + " " + T("Los atajos funcionarán solo con la ventana de la app activa."))
 
     def trigger_text(self, sid):
-        """Tecla asignada, tal como la verá el usuario ("" si no tiene)."""
-        if self.hotkeys.backend == "portal" and system_hotkeys_in_desktop():
-            return self.hotkeys.triggers.get(sid, "")
-        t = self.hotkey_triggers.get(sid, "")
-        return pretty(t) if t else ""
+        """Tecla de una acción general, voz o sonido, tal como la verá el usuario ("" si no tiene)."""
+        system = self.hotkeys.backend == "portal" and system_hotkeys_in_desktop()
+        for aid, _, trig in self._hotkey_actions():
+            if aid == sid or binding_target(aid) == sid:
+                text = self.hotkeys.triggers.get(aid, "") if system else (pretty(trig) if trig else "")
+                if text:
+                    return text
+        return ""
 
     def _on_hotkey(self, sid):
+        sid = binding_target(sid)
         if sid == "toggle_voice":
             self.toggle_voice()
         elif sid.startswith("voice:"):
@@ -1602,6 +1669,7 @@ class MainWindow(QMainWindow):
             "custom_voices": self.custom_voices,
             "voice_slots": self.voice_slots,
             "hotkeys": self.hotkey_triggers,
+            "bindings": self.bindings,
             "hypr_binds": self.hypr_binds.applied if self.hypr_binds else {},
             "sounds": self.sound_cfg,
             "user_sounds": [{k: u[k] for k in ("id", "path", "name", "icon", "category")} for u in self.user_sounds],

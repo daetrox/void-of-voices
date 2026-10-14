@@ -625,9 +625,24 @@ class KeyButton(QPushButton):
             return self._stop()
         new = "" if key in (Qt.Key_Backspace, Qt.Key_Delete) else \
             to_portal(QKeySequence(e.keyCombination()).toString())
+        digit = self._physical_digit(e)
+        if new and digit and e.modifiers() & Qt.ShiftModifier:
+            # Shift+1 llega como «!» (o «"», «·»… según la distribución): se usa la tecla física.
+            new = "+".join(new.split("+")[:-1] + [digit])
         self.trigger = new
         self._stop()
         self.changed.emit(new)
+
+    @staticmethod
+    def _physical_digit(e):
+        """Número de la fila superior pulsado, sea cual sea la distribución del teclado."""
+        import sys
+        if sys.platform == "win32":
+            vk = e.nativeVirtualKey()          # VK_0..VK_9 no dependen de Shift
+            return chr(vk) if 0x30 <= vk <= 0x39 else ""
+        sc = e.nativeScanCode()                # keycode de X11/Wayland: 10..19 = 1..0
+        # ponytail: solo la fila de números; otras teclas con Shift quedan como las da Qt.
+        return "1234567890"[sc - 10] if 10 <= sc <= 19 else ""
 
     def focusOutEvent(self, e):
         if self.capturing:
