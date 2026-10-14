@@ -28,7 +28,7 @@ from .engine import AudioEngine, Preview
 from .hotkeys import ACTIONS, GlobalHotkeys, HyprlandBinds, pretty, to_portal
 from .i18n import LANGUAGES, T, language, set_language
 from .widgets import (ACCENT, SLIDERS, STYLE, CheckListDialog, LevelMeter, ParamSlider, RoundToggle,
-                      FlowRow, IconPicker, KeyButton, ReflowGrid, SaveVoiceDialog, card, dark_palette, glyph_icon, iconize, key_capture, scroll_page)
+                      FlowRow, IconPicker, KeyButton, ReflowGrid, SaveVoiceDialog, card, scale_with_size, dark_palette, glyph_icon, iconize, key_capture, scroll_page)
 from .windows import QuickVoicesWindow, SoundPanelWindow
 
 DECK_SIZE, DECK_COLS = 12, 6   # casillas de cada panel rápido (voces y sonidos): 6×2
@@ -352,6 +352,7 @@ class MainWindow(QMainWindow):
         b.setToolTip(text)
         b.setIcon(glyph_icon(icon, 26, color or "#d9dcdf"))
         b.setIconSize(QSize(26, 26))
+        scale_with_size(b, icon, color or "#d9dcdf")
         b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self._deck_sizing(b)
         b.setCursor(Qt.PointingHandCursor)
@@ -374,6 +375,7 @@ class MainWindow(QMainWindow):
             if name in names:
                 b = self.voice_card(name, owner="deck", size=(110, 76))
                 self._deck_sizing(b)
+                scale_with_size(b, self._voice_icon(name), ACCENT)
             else:
                 b = self._deck_button(T("Vacío"), "plus")
                 b.clicked.connect(lambda _=False, i=i, b=b: self._deck_menu("voice", i, b))

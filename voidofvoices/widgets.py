@@ -4,7 +4,7 @@ import math
 from functools import lru_cache
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QByteArray, QEvent, QObject, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (QColor, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPalette, QPen,
                            QPixmap, QRadialGradient)
 from PySide6.QtSvg import QSvgRenderer
@@ -804,3 +804,30 @@ class ReflowGrid(QWidget):
 
     def minimumSizeHint(self):
         return QSize(self.cell_width, self.g.minimumSize().height())
+
+
+class _TileScaler(QObject):
+    """Ajusta icono y letra de una casilla a su tamaño: en pantalla completa
+    las casillas crecen y con tamaños fijos se veían vacías."""
+
+    def eventFilter(self, obj, ev):
+        if ev.type() == QEvent.Resize:
+            w, h = obj.width(), obj.height()
+            side = int(max(26, min(h * 0.38, w * 0.3, 64)))
+            if obj.iconSize().width() != side:
+                obj.setIconSize(QSize(side, side))
+                obj.setIcon(glyph_icon(obj.property("glyph"), side, obj.property("glyphColor")))
+                obj.setStyleSheet(f"font-size: {int(max(13, min(h * 0.12, 19)))}px;")
+        return False
+
+
+_scaler = None
+
+
+def scale_with_size(button, glyph, color="#d9dcdf"):
+    """Hace que el icono (``glyph``) y el texto de ``button`` crezcan con él."""
+    global _scaler
+    _scaler = _scaler or _TileScaler()
+    button.setProperty("glyph", glyph)
+    button.setProperty("glyphColor", color)
+    button.installEventFilter(_scaler)
