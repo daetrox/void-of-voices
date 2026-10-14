@@ -1,5 +1,8 @@
 # Cambios
 
+## 0.2.5
+- **Windows: los emojis ya se ven.** Los iconos con emoji (sonidos, paneles rápidos, selector de iconos) se dibujaban con la fuente Twemoji y en Windows no aparecían. Ahora se dibujan desde los SVG de Twemoji 15.0 incluidos en la app (los 3.720 emojis), igual que los iconos de Lucide, así que se ven idénticos en cualquier sistema (contribución de [@matsukiender-star](https://github.com/matsukiender-star), #3).
+
 ## 0.2.4
 - **Linux:** si `XDG_CONFIG_HOME` o `XDG_DATA_HOME` están vacías o son rutas relativas, se ignoran como pide la especificación XDG y se usan `~/.config` y `~/.local/share`. Antes la configuración acababa en la carpeta desde donde se abría la app. Una sola función (`env_dir()`) resuelve ahora esas carpetas para la configuración, los datos, el lanzador, el inicio automático y los atajos de Hyprland (contribución de [@matsukiender-star](https://github.com/matsukiender-star), #2).
 
