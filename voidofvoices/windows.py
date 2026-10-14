@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QCheckBox, QGridLayout, QHBoxLayout, QLabel, QLin
 
 from . import APP_NAME, ICON_PATH
 from .i18n import T
-from .widgets import ParamSlider
+from .widgets import ParamSlider, iconize
 
 
 class _ToolWindow(QWidget):
@@ -89,16 +89,16 @@ class QuickVoicesWindow(_ToolWindow):
         lay.setSpacing(10)
 
         row = QHBoxLayout()
-        self.power = QPushButton(T("⏻ Encendido"), objectName="pill")
+        self.power = iconize(QPushButton(T("⏻ Encendido"), objectName="pill"))
         self.power.setCheckable(True)
         self.power.clicked.connect(lambda on: ctrl.set_power(on))
         row.addWidget(self.power)
-        self.mute = QPushButton(T("🔇 Silencio"), objectName="pill")
+        self.mute = iconize(QPushButton(T("🔇 Silencio"), objectName="pill"))
         self.mute.setCheckable(True)
         self.mute.setProperty("warn", True)
         self.mute.clicked.connect(lambda on: ctrl.set_muted(on))
         row.addWidget(self.mute)
-        toggle = QPushButton(T("⇄ Normal / última"), objectName="pill")
+        toggle = iconize(QPushButton(T("⇄ Normal / última"), objectName="pill"))
         toggle.setToolTip(T("Alterna entre tu voz normal y la última voz usada"))
         toggle.clicked.connect(ctrl.toggle_voice)
         row.addWidget(toggle)
@@ -162,10 +162,10 @@ class SoundPanelWindow(_ToolWindow):
         lay.setContentsMargins(14, 12, 14, 12)
         lay.setSpacing(10)
         row = QHBoxLayout()
-        stop = QPushButton(T("⏹ Detener todo"), objectName="pill")
+        stop = iconize(QPushButton(T("⏹ Detener todo"), objectName="pill"))
         stop.clicked.connect(ctrl.stop_sounds)
         row.addWidget(stop)
-        self.mute = QPushButton(T("🔇 Silencio"), objectName="pill")
+        self.mute = iconize(QPushButton(T("🔇 Silencio"), objectName="pill"))
         self.mute.setCheckable(True)
         self.mute.setProperty("warn", True)
         self.mute.clicked.connect(lambda on: ctrl.set_muted(on))

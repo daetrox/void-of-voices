@@ -532,41 +532,41 @@ def V(**kw):
     return Params(**kw)
 
 
-# categoría → {nombre: (icono, Params)}
+# categoría → {nombre: (icono de assets/icons, Params)}
 VOICE_BANK = {
     "Básicas": {
-        "Natural": ("🙂", V()),
-        "Grave": ("🐻", V(pitch=-4, formant=-2, bass=3, treble=-1)),
-        "Agudo": ("🐭", V(pitch=4, formant=2, bass=-3, treble=2)),
-        "Locutor": ("🎙", V(pitch=-1, formant=-1, bass=4, treble=2)),
+        "Natural": ("smile", V()),
+        "Grave": ("paw-print", V(pitch=-4, formant=-2, bass=3, treble=-1)),
+        "Agudo": ("rat", V(pitch=4, formant=2, bass=-3, treble=2)),
+        "Locutor": ("mic-vocal", V(pitch=-1, formant=-1, bass=4, treble=2)),
     },
     "Género": {
-        "Femenina": ("👩", V(pitch=5, formant=3, bass=-3, treble=2)),
-        "Masculina": ("👨", V(pitch=-5, formant=-3, bass=3, treble=-1)),
-        "Niño": ("👦", V(pitch=7, formant=5, bass=-4, treble=1)),
-        "Anciano": ("👴", V(pitch=-2, formant=-1, vibrato=0.35, tremolo=0.15, treble=-2)),
+        "Femenina": ("venus", V(pitch=5, formant=3, bass=-3, treble=2)),
+        "Masculina": ("mars", V(pitch=-5, formant=-3, bass=3, treble=-1)),
+        "Niño": ("baby", V(pitch=7, formant=5, bass=-4, treble=1)),
+        "Anciano": ("glasses", V(pitch=-2, formant=-1, vibrato=0.35, tremolo=0.15, treble=-2)),
     },
     "Personajes": {
-        "Ardilla": ("🐿", V(pitch=10, formant=9)),
-        "Gigante": ("🗿", V(pitch=-9, formant=-6, bass=4, reverb=0.3, reverb_size=0.8)),
-        "Demonio": ("😈", V(pitch=-10, formant=-4, bass=6, distortion=0.25, reverb=0.25, reverb_size=0.6)),
-        "Fantasma": ("👻", V(pitch=-2, whisper=0.8, chorus=0.6, reverb=0.6, reverb_size=0.9)),
-        "Robot": ("🤖", V(pitch=-2, robot=0.9, robot_freq=55, treble=2, echo=0.15, echo_time=0.06)),
-        "Androide": ("🦾", V(robot=0.6, robot_freq=110, bitcrush=0.4, phaser=0.4)),
-        "Alien": ("👽", V(pitch=3, formant=6, robot=0.5, robot_freq=280, phaser=0.6, reverb=0.2)),
-        "Monstruo": ("👹", V(pitch=-12, formant=-8, distortion=0.4, bass=6, tremolo=0.2)),
-        "Susurro": ("🤫", V(whisper=1.0, treble=4, bass=-4)),
-        "Arcade 8-bit": ("👾", V(pitch=3, bitcrush=0.85, treble=2)),
+        "Ardilla": ("squirrel", V(pitch=10, formant=9)),
+        "Gigante": ("mountain", V(pitch=-9, formant=-6, bass=4, reverb=0.3, reverb_size=0.8)),
+        "Demonio": ("flame", V(pitch=-10, formant=-4, bass=6, distortion=0.25, reverb=0.25, reverb_size=0.6)),
+        "Fantasma": ("ghost", V(pitch=-2, whisper=0.8, chorus=0.6, reverb=0.6, reverb_size=0.9)),
+        "Robot": ("bot", V(pitch=-2, robot=0.9, robot_freq=55, treble=2, echo=0.15, echo_time=0.06)),
+        "Androide": ("cpu", V(robot=0.6, robot_freq=110, bitcrush=0.4, phaser=0.4)),
+        "Alien": ("orbit", V(pitch=3, formant=6, robot=0.5, robot_freq=280, phaser=0.6, reverb=0.2)),
+        "Monstruo": ("skull", V(pitch=-12, formant=-8, distortion=0.4, bass=6, tremolo=0.2)),
+        "Susurro": ("wind", V(whisper=1.0, treble=4, bass=-4)),
+        "Arcade 8-bit": ("gamepad-2", V(pitch=3, bitcrush=0.85, treble=2)),
     },
     "Ambientes": {
-        "Radio": ("📻", V(radio=1.0, distortion=0.15)),
-        "Teléfono": ("☎", V(radio=1.0, bitcrush=0.5)),
-        "Walkie-talkie": ("📟", V(radio=1.0, distortion=0.4, bitcrush=0.3)),
-        "Megáfono": ("📢", V(radio=0.8, distortion=0.55, echo=0.15, echo_time=0.12)),
-        "Bajo el agua": ("🌊", V(underwater=1.0, vibrato=0.3)),
-        "Cueva": ("🕳", V(echo=0.35, echo_time=0.35, reverb=0.5, reverb_size=0.85)),
-        "Catedral": ("⛪", V(reverb=0.85, reverb_size=1.0)),
-        "Estadio": ("🏟", V(echo=0.25, echo_time=0.5, reverb=0.6, reverb_size=0.95, chorus=0.3)),
+        "Radio": ("radio", V(radio=1.0, distortion=0.15)),
+        "Teléfono": ("phone", V(radio=1.0, bitcrush=0.5)),
+        "Walkie-talkie": ("radio-receiver", V(radio=1.0, distortion=0.4, bitcrush=0.3)),
+        "Megáfono": ("megaphone", V(radio=0.8, distortion=0.55, echo=0.15, echo_time=0.12)),
+        "Bajo el agua": ("waves", V(underwater=1.0, vibrato=0.3)),
+        "Cueva": ("mountain-snow", V(echo=0.35, echo_time=0.35, reverb=0.5, reverb_size=0.85)),
+        "Catedral": ("church", V(reverb=0.85, reverb_size=1.0)),
+        "Estadio": ("trophy", V(echo=0.25, echo_time=0.5, reverb=0.6, reverb_size=0.95, chorus=0.3)),
     },
 }
 

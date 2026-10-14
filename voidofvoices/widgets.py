@@ -1,17 +1,25 @@
 """Estilo y controles reutilizables de la interfaz."""
 
 import math
+from functools import lru_cache
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QByteArray, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (QColor, QFont, QIcon, QLinearGradient, QPainter, QPalette, QPen,
                            QPixmap, QRadialGradient)
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QAbstractButton, QCheckBox, QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QLabel,
     QListWidget, QListWidgetItem, QScrollArea, QSizePolicy, QSlider, QToolButton,
     QVBoxLayout, QWidget,
 )
 
+from . import RESOURCE_DIR
 from .i18n import T
+
+ICON_DIR = RESOURCE_DIR / "voidofvoices" / "assets" / "icons"   # Lucide (ISC)
+# Prefijos de los textos de botones → icono SVG (los textos los conservan para traducirse).
+PREFIX_ICONS = {"⇄": "arrow-left-right", "🪟": "app-window", "＋": "plus", "⬇": "download",
+                "⬆": "upload", "📦": "package", "⏹": "square-stop", "⏻": "power", "🔇": "mic-off"}
 
 ACCENT = "#5ef0a0"
 STYLE = f"""
@@ -140,19 +148,36 @@ SLIDERS = {
 
 # ------------------------------------------------------------- widgets
 
-def glyph_icon(text, size=28):
-    """Icono a partir de un carácter/emoji, para no depender de ficheros."""
+@lru_cache(maxsize=None)
+def glyph_icon(text, size=28, color="#d9dcdf"):
+    """Icono SVG de assets/icons si ``text`` es su nombre («mic»); si no, el
+    carácter/emoji (los sonidos de los usuarios usan emojis)."""
     pm = QPixmap(size * 2, size * 2)
     pm.fill(Qt.transparent)
     p = QPainter(pm)
+    svg = ICON_DIR / f"{text}.svg"
+    if svg.is_file():
+        data = svg.read_bytes().replace(b"currentColor", color.encode())
+        QSvgRenderer(QByteArray(data)).render(p, QRectF(size * 0.25, size * 0.25, size * 1.5, size * 1.5))
+        p.end()
+        return QIcon(pm)
     f = QFont()
     f.setFamilies([f.family(), "Twemoji Mozilla"])
     f.setPixelSize(int(size * 1.5))
     p.setFont(f)
-    p.setPen(QColor("#d9dcdf"))
+    p.setPen(QColor(color))
     p.drawText(pm.rect(), Qt.AlignCenter, text)
     p.end()
     return QIcon(pm)
+
+
+def iconize(button, size=16):
+    """«⏹ Detener todo» → icono SVG + «Detener todo»."""
+    head, _, rest = button.text().partition(" ")
+    if head in PREFIX_ICONS and rest:
+        button.setText(rest)
+        button.setIcon(glyph_icon(PREFIX_ICONS[head], size))
+    return button
 
 
 class RoundToggle(QAbstractButton):
@@ -195,11 +220,9 @@ class RoundToggle(QAbstractButton):
 
         on_text, off_text, on_sub, off_sub = self.texts
         if self.glyph:
-            f = QFont(self.font())
-            f.setPixelSize(int(40 * k))
-            p.setFont(f)
-            p.setPen(QColor("#f0f2f4") if on else QColor("#9a9ea3"))
-            p.drawText(QRectF(r.left(), c.y() - 62 * k, r.width(), 44 * k), Qt.AlignCenter, self.glyph)
+            side = int(44 * k)
+            icon = glyph_icon(self.glyph, side, "#f0f2f4" if on else "#9a9ea3")
+            p.drawPixmap(int(c.x() - side / 2), int(c.y() - 62 * k), icon.pixmap(side, side))
         else:
             led = QRectF(0, 0, 18 * k, 18 * k)
             led.moveCenter(c - QPointF(0, 34 * k))

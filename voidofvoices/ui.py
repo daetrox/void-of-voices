@@ -26,8 +26,8 @@ from .dsp import (ENHANCE_PRESETS, EQ_BANDS, QUICK_VOICES, VOICE_BANK, VOICE_KEY
 from .engine import AudioEngine, Preview
 from .hotkeys import ACTIONS, GlobalHotkeys, hyprland_binds, pretty, to_portal
 from .i18n import LANGUAGES, T, language, set_language
-from .widgets import (SLIDERS, STYLE, CheckListDialog, LevelMeter, ParamSlider, RoundToggle,
-                      card, dark_palette, glyph_icon, key_capture, scroll_page)
+from .widgets import (ACCENT, SLIDERS, STYLE, CheckListDialog, LevelMeter, ParamSlider, RoundToggle,
+                      card, dark_palette, glyph_icon, iconize, key_capture, scroll_page)
 from .windows import QuickVoicesWindow, SoundPanelWindow
 
 DEFAULT_SLOTS = ["Robot", "Demonio", "Femenina", "Ardilla", "Radio"]
@@ -122,8 +122,8 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(0, 44, 0, 0)
         lay.setSpacing(2)
         self.nav = QButtonGroup(self)
-        items = [("🎙", "Micrófono"), ("🎭", "Voces"), ("🔊", "Sonidos"), ("✨", "Efectos"),
-                 ("🎧", "Mejora"), ("🎚", "Ecualizador"), ("⚙", "Ajustes")]
+        items = [("mic", "Micrófono"), ("drama", "Voces"), ("volume-2", "Sonidos"), ("sparkles", "Efectos"),
+                 ("headphones", "Mejora"), ("sliders-vertical", "Ecualizador"), ("settings", "Ajustes")]
         for i, (glyph, name) in enumerate(items):
             b = QToolButton(objectName="nav")
             b.setText(T(name))
@@ -176,7 +176,7 @@ class MainWindow(QMainWindow):
         return s
 
     def _pill(self, text, slot, tip=None):
-        b = QPushButton(T(text), objectName="pill")
+        b = iconize(QPushButton(T(text), objectName="pill"))
         b.setCursor(Qt.PointingHandCursor)
         if tip:
             b.setToolTip(T(tip))
@@ -218,11 +218,11 @@ class MainWindow(QMainWindow):
         top.addWidget(self.power)
         top.addSpacing(14)
         side_btns = QVBoxLayout()
-        self.listen = RoundToggle(104, T("ESCUCHANDO"), T("ESCUCHAR"), "ON", "OFF", glyph="🎧")
+        self.listen = RoundToggle(104, T("ESCUCHANDO"), T("ESCUCHAR"), "ON", "OFF", glyph="headphones")
         self.listen.setToolTip(T("Escuchar tu voz modificada por los altavoces/auriculares"))
         self.listen.toggled.connect(self._on_monitor)
         side_btns.addWidget(self.listen)
-        self.mute = RoundToggle(104, T("SILENCIADO"), T("SILENCIAR"), "ON", "OFF", glyph="🔇")
+        self.mute = RoundToggle(104, T("SILENCIADO"), T("SILENCIAR"), "ON", "OFF", glyph="mic-off")
         self.mute.setToolTip(T("Silenciar tu voz (los sonidos siguen funcionando)"))
         self.mute.toggled.connect(self.set_muted)
         side_btns.addWidget(self.mute)
@@ -279,7 +279,7 @@ class MainWindow(QMainWindow):
         for text, slot in (("＋ Guardar voz actual", self._save_custom_voice),
                            ("⬇ Importar…", self._import_voices_dialog),
                            ("⬆ Exportar…", self._export_voices)):
-            b = QPushButton(T(text), objectName="ghost")
+            b = iconize(QPushButton(T(text), objectName="ghost"))
             b.clicked.connect(slot)
             head.addWidget(b)
         lay.addLayout(head)
@@ -300,7 +300,7 @@ class MainWindow(QMainWindow):
         self.custom_grid = QGridLayout()
         self.custom_grid.setSpacing(10)
         lay.addLayout(self.custom_grid)
-        self.custom_empty = QLabel(T("Ajusta los controles a tu gusto y pulsa «＋ Guardar voz actual». "
+        self.custom_empty = QLabel(T("Ajusta los controles a tu gusto y pulsa «Guardar voz actual». "
                                      "Clic derecho sobre una voz propia para renombrarla o borrarla."),
                                    objectName="muted")
         self.custom_empty.setWordWrap(True)
@@ -320,13 +320,13 @@ class MainWindow(QMainWindow):
                            ("📦 Importar paquete…", self._import_pack_dialog),
                            ("📦 Exportar paquete…", self._export_pack),
                            ("🪟 Panel", lambda: self.toggle_window("sound_panel"))):
-            b = QPushButton(T(text), objectName="ghost")
+            b = iconize(QPushButton(T(text), objectName="ghost"))
             b.clicked.connect(slot)
             row.addWidget(b)
         row.addStretch()
         c.addLayout(row)
         row = QHBoxLayout()
-        stop = QPushButton(T("⏹ Detener todo"), objectName="ghost")
+        stop = iconize(QPushButton(T("⏹ Detener todo"), objectName="ghost"))
         stop.clicked.connect(self.stop_sounds)
         row.addWidget(stop)
         self.sound_filter = QLineEdit()
@@ -567,13 +567,13 @@ class MainWindow(QMainWindow):
 
     def _voice_icon(self, name):
         bank = all_voices()
-        return bank[name][0] if name in bank else "⭐"
+        return bank[name][0] if name in bank else "star"
 
     def voice_card(self, name, owner, size=(104, 84), small=False):
         b = QToolButton(objectName="voiceSmall" if small else "voice")
         b.setText(self.voice_label(name))
         b.setToolTip(self.voice_label(name))
-        b.setIcon(glyph_icon(self._voice_icon(name), 22 if small else 30))
+        b.setIcon(glyph_icon(self._voice_icon(name), 22 if small else 30, ACCENT))
         b.setIconSize(QSize(22, 22) if small else QSize(30, 30))
         b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         b.setCheckable(True)
@@ -711,7 +711,7 @@ class MainWindow(QMainWindow):
 
     def _export_voices(self, names=None):
         if not self.custom_voices:
-            QMessageBox.information(self, APP_NAME, T("Primero guarda alguna voz con «＋ Guardar voz actual»."))
+            QMessageBox.information(self, APP_NAME, T("Primero guarda alguna voz con «Guardar voz actual»."))
             return
         if names is None:
             dlg = CheckListDialog(self, T("Exportar voces"), T("Elige las voces que quieres compartir:"),
@@ -861,7 +861,7 @@ class MainWindow(QMainWindow):
             g = QGridLayout()
             g.setSpacing(8 if small else 10)
             if not entries:
-                hint = QLabel(T("Aún no has añadido sonidos: usa «＋ Añadir sonidos…» o arrastra "
+                hint = QLabel(T("Aún no has añadido sonidos: usa «Añadir sonidos…» o arrastra "
                                 "archivos (WAV, MP3, OGG, FLAC)."), objectName="muted")
                 hint.setWordWrap(True)
                 g.addWidget(hint, 0, 0, 1, cols)
@@ -1395,7 +1395,8 @@ class MainWindow(QMainWindow):
         menu.addAction(self.tray_power)
         menu.addAction(self.tray_mute)
         menu.addSeparator()
-        menu.addAction(T("⇄ Normal / última voz"), self.toggle_voice)
+        menu.addAction(glyph_icon("arrow-left-right", 16), T("⇄ Normal / última voz").partition(" ")[2],
+                       self.toggle_voice)
         self.tray_voices = menu.addMenu(T("Voces rápidas"))
         self.tray_voices.aboutToShow.connect(self._fill_tray_voices)
         menu.addSeparator()

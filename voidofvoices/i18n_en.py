@@ -48,12 +48,12 @@ EN = {
     "＋ Guardar voz actual": "＋ Save current voice", "⬇ Importar…": "⬇ Import…", "⬆ Exportar…": "⬆ Export…",
     "Las voces cambian tono, timbre y efectos. La mejora de audio (ruido, compresor…) y el ecualizador se mantienen.":
         "Voices change pitch, timbre and effects. Audio cleanup (noise, compressor…) and the equalizer stay as they are.",
-    "Ajusta los controles a tu gusto y pulsa «＋ Guardar voz actual». Clic derecho sobre una voz propia para renombrarla o borrarla.":
-        "Tweak the controls and press “＋ Save current voice”. Right-click one of your voices to rename or delete it.",
+    "Ajusta los controles a tu gusto y pulsa «Guardar voz actual». Clic derecho sobre una voz propia para renombrarla o borrarla.":
+        "Tweak the controls and press “Save current voice”. Right-click one of your voices to rename or delete it.",
     "Renombrar…": "Rename…", "Exportar…": "Export…", "Renombrar": "Rename", "Nombre:": "Name:",
     "Borrar «{}»": "Delete “{}”", "Guardar voz": "Save voice", "Nombre de la voz:": "Voice name:",
     "Ya existe una voz del banco con ese nombre.": "There is already a bank voice with that name.",
-    "Primero guarda alguna voz con «＋ Guardar voz actual».": "First save a voice with “＋ Save current voice”.",
+    "Primero guarda alguna voz con «Guardar voz actual».": "First save a voice with “Save current voice”.",
     "Exportar voces": "Export voices", "Importar voces": "Import voices",
     "Elige las voces que quieres compartir:": "Choose the voices you want to share:",
     "Voces de Void of Voices": "Void of Voices voices",
@@ -72,8 +72,8 @@ EN = {
     "Buscar sonido…": "Search sound…", "Volumen de sonidos": "Sound volume",
     "Bajar mi voz al sonar": "Lower my voice while playing",
     "Oír los sonidos en mis auriculares": "Hear sounds on my headphones",
-    "Aún no has añadido sonidos: usa «＋ Añadir sonidos…» o arrastra archivos (WAV, MP3, OGG, FLAC).":
-        "You haven't added sounds yet: use “＋ Add sounds…” or drop files (WAV, MP3, OGG, FLAC).",
+    "Aún no has añadido sonidos: usa «Añadir sonidos…» o arrastra archivos (WAV, MP3, OGG, FLAC).":
+        "You haven't added sounds yet: use “Add sounds…” or drop files (WAV, MP3, OGG, FLAC).",
     "Vista previa en tus altavoces — enciende el modulador para enviarlo al micrófono":
         "Preview on your speakers — turn the changer on to send it to the microphone",
     "No se pudo reproducir «{}»:\n{}": "Couldn't play “{}”:\n{}",
