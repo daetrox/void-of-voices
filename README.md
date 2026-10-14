@@ -110,4 +110,6 @@ En Linux necesita PipeWire (o PulseAudio) con `pactl`, `parec` y `pacat`, que vi
 
 ## 🙌 Créditos
 
+**Colaboradores:** [@matsukiender-star](https://github.com/matsukiender-star) (Matsuki Ender).
+
 Todos los sonidos incluidos son de dominio público (CC0): grabaciones de [Freesound](https://freesound.org) y voces de [Kenney](https://kenney.nl). La lista completa está en [`sounds/CREDITS.md`](sounds/CREDITS.md).

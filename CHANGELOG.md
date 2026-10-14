@@ -1,5 +1,8 @@
 # Cambios
 
+## 0.2.4
+- **Linux:** si `XDG_CONFIG_HOME` o `XDG_DATA_HOME` están vacías o son rutas relativas, se ignoran como pide la especificación XDG y se usan `~/.config` y `~/.local/share`. Antes la configuración acababa en la carpeta desde donde se abría la app. Una sola función (`env_dir()`) resuelve ahora esas carpetas para la configuración, los datos, el lanzador, el inicio automático y los atajos de Hyprland (contribución de [@matsukiender-star](https://github.com/matsukiender-star), #2).
+
 ## 0.2.3
 - **La app funciona ya fuera del equipo donde se desarrolló** (contribución de [@matsukiender-star](https://github.com/matsukiender-star)):
   - **Iconos en blanco** en Fedora/Nobara y distros recientes: el Qt de PySide6 no dibuja Noto Color Emoji COLRv1. Se incluyen los emojis Twemoji y los iconos SVG de Lucide para toda la interfaz.
